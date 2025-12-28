@@ -74,6 +74,16 @@ shadow-verify:
   allow_failure: true  # Non-authoritative
 ----
 
+== Summary.json Schema
+
+The `summary.json` format is defined in `spec/summary-schema.json` (JSON Schema draft 2020-12).
+
+Key fields used by this tool:
+
+* `manifest.canonical_bytes_sha256` — SHA-256 of canonicalized .ctp bytes (for `--check-digest`)
+
+See `manifests/examples/ct-minbase.summary.json` for a complete example.
+
 == Maintenance
 
 If key ordering rules change, update `is_key_char` and `parse_key_colon` functions.

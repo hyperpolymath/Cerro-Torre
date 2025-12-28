@@ -523,6 +523,106 @@ build = ["libmaxminddb-dev"]
 add = ["--with-http_geoip_module=dynamic"]
 ```
 
+## Extended Sections for Multi-Source Images
+
+The following sections extend the basic manifest format for container images and other multi-source builds.
+
+#### `[upstream]` — Optional
+
+For multi-source manifests (container images), specifies the upstream distribution context.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `family` | String | Yes | Distribution family: `debian`, `fedora`, `alpine` |
+| `suite` | String | Yes | Release codename: `bookworm`, `f39`, `edge` |
+| `snapshot_service` | String | No | Snapshot service for reproducibility |
+| `snapshot_timestamp` | DateTime | No | Pinned timestamp |
+
+```ctp
+[upstream]
+family = "debian"
+suite = "bookworm"
+snapshot_service = "snapshot.debian.org"
+snapshot_timestamp = 2025-12-20T00:00:00Z
+```
+
+#### `[[inputs.sources]]` — Optional
+
+For multi-source builds, declares all source packages with artifacts.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | String | Yes | Unique identifier for this source |
+| `type` | String | Yes | Source type: `debian_dsc`, `fedora_srpm`, `tarball` |
+| `name` | String | Yes | Package name |
+| `version` | String | Yes | Package version |
+
+Each source has nested `[[inputs.sources.artifacts]]`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `filename` | String | Yes | Artifact filename |
+| `uri` | String | Yes | Download URL |
+| `sha256` | Hash | Yes | SHA-256 hash |
+
+```ctp
+[[inputs.sources]]
+id = "debian_source_bash"
+type = "debian_dsc"
+name = "bash"
+version = "5.2.15-2+b7"
+
+[[inputs.sources.artifacts]]
+filename = "bash_5.2.15-2+b7.dsc"
+uri = "https://snapshot.debian.org/.../bash_5.2.15-2+b7.dsc"
+sha256 = "abc123..."
+```
+
+#### `[[build.plan]]` — Optional
+
+Declarative build plan for multi-step builds. Alternative to `[build.phases]` for complex builds.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `step` | String | Yes | Step type (fixed vocabulary) |
+| `using` | String | No | Build tool/method |
+| `source` | String | No | Source ID reference |
+| `sources` | List[String] | No | Multiple source IDs |
+| `profile` | String | No | Build profile |
+
+**Step Types**: `import`, `build_debian_source`, `build_fedora_source`, `assemble_rootfs`, `emit_oci_image`
+
+```ctp
+[[build.plan]]
+step = "import"
+using = "debian"
+sources = ["debian_source_bash", "debian_source_coreutils"]
+
+[[build.plan]]
+step = "build_debian_source"
+source = "debian_source_bash"
+profile = "debian_rules"
+
+[[build.plan]]
+step = "emit_oci_image"
+
+[build.plan.image]
+entrypoint = ["/bin/bash"]
+```
+
+#### `[policy]` — Optional
+
+Build policy requirements.
+
+```ctp
+[policy.provenance]
+require_source_hashes = true
+require_reproducible_build = true
+
+[policy.attestations]
+emit = ["in_toto", "sbom_spdx_json"]
+```
+
 ## Grammar (EBNF)
 
 ```ebnf
@@ -548,6 +648,14 @@ algorithm    = "sha256" | "sha384" | "sha512" | "blake3" ;
 ```
 
 ## Changelog
+
+### 0.1.1-draft (2025-12-28)
+- Added `[upstream]` section for multi-source manifests
+- Added `[[inputs.sources]]` for declaring multiple sources with artifacts
+- Added `[[build.plan]]` for declarative multi-step builds
+- Added `[policy]` section for provenance and attestation requirements
+- Added `ctp_version` top-level field
+- See `manifests/examples/ct-minbase.ctp` for canonical example
 
 ### 0.1.0-draft (2024-12-07)
 - Initial draft specification
