@@ -13,8 +13,9 @@ tags = ["security", "supply-chain", "linux", "containers", "provenance"]
 executables = ["cerro"]
 
 # Dependencies - start minimal, add as needed
+# Pin to gnatcoll 25 due to project file resolution issue in 26
 [[depends-on]]
-gnatcoll = ">=24.0.0"
+gnatcoll = "~25.0.0"
 
 # For TOML parsing (manifest files)
 [[depends-on]]
@@ -22,7 +23,7 @@ toml_slicer = "*"
 
 # For JSON handling (provenance, SBOM output)
 [[depends-on]]
-json_ada = "*"
+json = "*"
 
 # For HTTP client (source fetching) - MVP
 # Uncomment when ready to implement fetcher
