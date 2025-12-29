@@ -266,4 +266,334 @@ package body Cerro_CLI is
       Set_Exit_Status (CT_Errors.Exit_General_Failure);
    end Run_Import;
 
+   ---------
+   -- Run --
+   ---------
+
+   procedure Run_Run is
+   begin
+      if Argument_Count < 2 then
+         Put_Line ("Usage: ct run <bundle.ctp> [--runtime=<name>] [-- <args>]");
+         Put_Line ("");
+         Put_Line ("Run a verified bundle via configured runtime.");
+         Put_Line ("");
+         Put_Line ("Options:");
+         Put_Line ("  --runtime=<name>   Runtime to use (default from config)");
+         Put_Line ("  --no-verify        Skip verification before run");
+         Put_Line ("  -- <args>          Pass remaining args to runtime");
+         Put_Line ("");
+         Put_Line ("Runtimes:");
+         Put_Line ("  svalinn            Svalinn (recommended)");
+         Put_Line ("  podman             Podman");
+         Put_Line ("  docker             Docker");
+         Put_Line ("  nerdctl            containerd/nerdctl");
+         Put_Line ("");
+         Put_Line ("Examples:");
+         Put_Line ("  ct run nginx.ctp");
+         Put_Line ("  ct run nginx.ctp --runtime=svalinn");
+         Put_Line ("  ct run nginx.ctp -- -p 8080:80 -d");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      declare
+         Bundle_Path : constant String := Argument (2);
+      begin
+         Put_Line ("Running bundle: " & Bundle_Path);
+         Put_Line ("");
+         Put_Line ("(v0.2 - Not yet implemented)");
+         Put_Line ("");
+         Put_Line ("This command will:");
+         Put_Line ("  1. Verify bundle (unless --no-verify)");
+         Put_Line ("  2. Unpack to OCI layout");
+         Put_Line ("  3. Delegate to runtime (svalinn/podman/docker)");
+         Put_Line ("  4. Pass through runtime arguments");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+      end;
+   end Run_Run;
+
+   ------------
+   -- Unpack --
+   ------------
+
+   procedure Run_Unpack is
+   begin
+      if Argument_Count < 2 then
+         Put_Line ("Usage: ct unpack <bundle.ctp> -o <dir> [--format=oci|docker]");
+         Put_Line ("");
+         Put_Line ("Extract bundle to OCI layout on disk.");
+         Put_Line ("");
+         Put_Line ("Options:");
+         Put_Line ("  -o, --output <dir>   Output directory (required)");
+         Put_Line ("  --format=oci         OCI image layout (default)");
+         Put_Line ("  --format=docker      Docker save format");
+         Put_Line ("  --include-attestations  Copy attestations alongside");
+         Put_Line ("");
+         Put_Line ("Examples:");
+         Put_Line ("  ct unpack nginx.ctp -o ./nginx-oci/");
+         Put_Line ("  ct unpack nginx.ctp -o nginx.tar --format=docker");
+         Put_Line ("");
+         Put_Line ("Use with:");
+         Put_Line ("  podman load < nginx.tar");
+         Put_Line ("  nerdctl load < nginx.tar");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      declare
+         Bundle_Path : constant String := Argument (2);
+      begin
+         Put_Line ("Unpacking bundle: " & Bundle_Path);
+         Put_Line ("");
+         Put_Line ("(v0.2 - Not yet implemented)");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+      end;
+   end Run_Unpack;
+
+   ------------
+   -- Doctor --
+   ------------
+
+   procedure Run_Doctor is
+   begin
+      Put_Line ("ct doctor - Check distribution pipeline health");
+      Put_Line ("");
+      Put_Line ("Options:");
+      Put_Line ("  --quick   Just check essentials");
+      Put_Line ("  --fix     Attempt to fix issues");
+      Put_Line ("");
+      Put_Line ("Checks performed:");
+      Put_Line ("");
+      Put_Line ("  Crypto backend:");
+      Put_Line ("    [ ] libsodium available");
+      Put_Line ("    [ ] liboqs available (for post-quantum)");
+      Put_Line ("");
+      Put_Line ("  Configuration:");
+      Put_Line ("    [ ] Config file valid (~/.config/cerro/config.toml)");
+      Put_Line ("    [ ] Policy file valid (~/.config/cerro/policy.json)");
+      Put_Line ("    [ ] Default key configured");
+      Put_Line ("");
+      Put_Line ("  Keys:");
+      Put_Line ("    [ ] Keys directory accessible");
+      Put_Line ("    [ ] No expired keys");
+      Put_Line ("    [ ] Private key decryptable");
+      Put_Line ("");
+      Put_Line ("  Registry access:");
+      Put_Line ("    [ ] Can reach configured registries");
+      Put_Line ("    [ ] Authentication valid");
+      Put_Line ("");
+      Put_Line ("  System:");
+      Put_Line ("    [ ] Clock within tolerance");
+      Put_Line ("    [ ] Content store healthy");
+      Put_Line ("    [ ] Sufficient disk space");
+      Put_Line ("");
+      Put_Line ("(v0.2 - Not yet implemented)");
+      Set_Exit_Status (CT_Errors.Exit_General_Failure);
+   end Run_Doctor;
+
+   ------------
+   -- Resign --
+   ------------
+
+   procedure Run_Resign is
+   begin
+      if Argument_Count < 2 then
+         Put_Line ("Usage: ct re-sign <bundle.ctp> -k <key-id> [options]");
+         Put_Line ("");
+         Put_Line ("Re-sign a bundle with a new key (preserves content).");
+         Put_Line ("");
+         Put_Line ("Options:");
+         Put_Line ("  -k, --key <key-id>   New signing key (required)");
+         Put_Line ("  --add-signature      Add signature, keep existing");
+         Put_Line ("  --replace            Replace all signatures (default)");
+         Put_Line ("  -o, --output <file>  Output path (default: overwrite)");
+         Put_Line ("");
+         Put_Line ("Examples:");
+         Put_Line ("  ct re-sign nginx.ctp -k new-key-2026");
+         Put_Line ("  ct re-sign nginx.ctp -k backup-key --add-signature");
+         Put_Line ("  ct re-sign nginx.ctp -k new-key -o nginx-resigned.ctp");
+         Put_Line ("");
+         Put_Line ("Use cases:");
+         Put_Line ("  - Key rotation (old key expiring)");
+         Put_Line ("  - Multi-party signing (threshold policies)");
+         Put_Line ("  - Countersigning (adding endorsements)");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      declare
+         Bundle_Path : constant String := Argument (2);
+      begin
+         Put_Line ("Re-signing bundle: " & Bundle_Path);
+         Put_Line ("");
+         Put_Line ("(v0.2 - Not yet implemented)");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+      end;
+   end Run_Resign;
+
+   ----------
+   -- Diff --
+   ----------
+
+   procedure Run_Diff is
+   begin
+      if Argument_Count < 3 then
+         Put_Line ("Usage: ct diff <old.ctp> <new.ctp> [options]");
+         Put_Line ("");
+         Put_Line ("Human-readable diff between bundles.");
+         Put_Line ("");
+         Put_Line ("Options:");
+         Put_Line ("  --layers     Show only layer changes");
+         Put_Line ("  --config     Show only config/env changes");
+         Put_Line ("  --signers    Show only signature changes");
+         Put_Line ("  --json       Output machine-readable JSON");
+         Put_Line ("");
+         Put_Line ("Output shows:");
+         Put_Line ("  - Changed layers (added/removed/modified)");
+         Put_Line ("  - Config differences (ENV, labels, entrypoint)");
+         Put_Line ("  - Signature changes (new signers, removed)");
+         Put_Line ("  - Attestation differences (SBOM, provenance)");
+         Put_Line ("");
+         Put_Line ("Examples:");
+         Put_Line ("  ct diff nginx-1.25.ctp nginx-1.26.ctp");
+         Put_Line ("  ct diff old.ctp new.ctp --layers");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      declare
+         Old_Bundle : constant String := Argument (2);
+         New_Bundle : constant String := Argument (3);
+      begin
+         Put_Line ("Comparing bundles:");
+         Put_Line ("  Old: " & Old_Bundle);
+         Put_Line ("  New: " & New_Bundle);
+         Put_Line ("");
+         Put_Line ("(v0.2 - Not yet implemented)");
+         Put_Line ("");
+         Put_Line ("Sample output:");
+         Put_Line ("");
+         Put_Line ("  Layers:");
+         Put_Line ("    ~ sha256:abc... -> sha256:def...  (base changed)");
+         Put_Line ("    + sha256:123...                   (new layer)");
+         Put_Line ("");
+         Put_Line ("  Config:");
+         Put_Line ("    ~ ENV[""VERSION""] = ""1.25"" -> ""1.26""");
+         Put_Line ("");
+         Put_Line ("  Signatures:");
+         Put_Line ("    = Both signed by: cerro-official-2025");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+      end;
+   end Run_Diff;
+
+   -----------
+   -- Index --
+   -----------
+
+   procedure Run_Index is
+   begin
+      if Argument_Count < 2 then
+         Put_Line ("Usage: ct index <directory> [options]");
+         Put_Line ("");
+         Put_Line ("Build searchable index of bundles.");
+         Put_Line ("");
+         Put_Line ("Options:");
+         Put_Line ("  --update    Update existing index");
+         Put_Line ("  --output    Index file path (default: ./ct-index.json)");
+         Put_Line ("");
+         Put_Line ("Indexed fields:");
+         Put_Line ("  - name, version, description");
+         Put_Line ("  - source image digest");
+         Put_Line ("  - signer key IDs and fingerprints");
+         Put_Line ("  - SBOM presence, licenses");
+         Put_Line ("  - build provenance (builder, date)");
+         Put_Line ("  - base image lineage");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      declare
+         Dir_Path : constant String := Argument (2);
+      begin
+         Put_Line ("Indexing directory: " & Dir_Path);
+         Put_Line ("");
+         Put_Line ("(v0.2 - Not yet implemented)");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+      end;
+   end Run_Index;
+
+   ------------
+   -- Search --
+   ------------
+
+   procedure Run_Search is
+   begin
+      if Argument_Count < 2 then
+         Put_Line ("Usage: ct search <query> [options]");
+         Put_Line ("");
+         Put_Line ("Search bundles by metadata.");
+         Put_Line ("");
+         Put_Line ("Options:");
+         Put_Line ("  --signer <pattern>   Filter by signer key ID");
+         Put_Line ("  --has-sbom           Only bundles with SBOM");
+         Put_Line ("  --has-provenance     Only bundles with provenance");
+         Put_Line ("  --digest <sha256>    By source image digest");
+         Put_Line ("  --after <date>       Created after date");
+         Put_Line ("  --before <date>      Created before date");
+         Put_Line ("  --index <file>       Index file to search");
+         Put_Line ("");
+         Put_Line ("Examples:");
+         Put_Line ("  ct search nginx");
+         Put_Line ("  ct search --signer cerro-official-*");
+         Put_Line ("  ct search --has-sbom --after 2025-01-01");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      declare
+         Query : constant String := Argument (2);
+      begin
+         Put_Line ("Searching for: " & Query);
+         Put_Line ("");
+         Put_Line ("(v0.2 - Not yet implemented)");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+      end;
+   end Run_Search;
+
+   ------------
+   -- Policy --
+   ------------
+
+   procedure Run_Policy is
+   begin
+      if Argument_Count < 2 then
+         Put_Line ("Usage: ct policy <subcommand> [args]");
+         Put_Line ("");
+         Put_Line ("Policy management subcommands:");
+         Put_Line ("  init                   Create starter policy interactively");
+         Put_Line ("  show                   Display current policy");
+         Put_Line ("  add-signer <key-id>    Trust a signer");
+         Put_Line ("  add-registry <pat>     Allow a registry pattern");
+         Put_Line ("  deny <key-id> [date]   Add to deny-list");
+         Put_Line ("  pin <bundle> <digest>  Pin bundle to specific digest");
+         Put_Line ("");
+         Put_Line ("Examples:");
+         Put_Line ("  ct policy init");
+         Put_Line ("  ct policy add-signer cerro-official-2025");
+         Put_Line ("  ct policy add-registry 'docker.io/library/*'");
+         Put_Line ("  ct policy deny compromised-key --after 2025-06-01");
+         Put_Line ("  ct policy pin nginx.ctp sha256:abc123...");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      declare
+         Subcommand : constant String := Argument (2);
+      begin
+         Put_Line ("Policy subcommand: " & Subcommand);
+         Put_Line ("(v0.2 - Not yet implemented)");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+      end;
+   end Run_Policy;
+
 end Cerro_CLI;
