@@ -114,7 +114,7 @@ The project structure and architecture are defined. Core modules exist as stubs 
 
 ## v0.2 — "Base Camp"
 
-**Goal:** Distribution commands + post-quantum signatures
+**Goal:** Distribution, runtime integration, and adoption ergonomics
 
 ### Distribution Commands
 
@@ -138,6 +138,123 @@ The project structure and architecture are defined. Core modules exist as stubs 
   ct import airgap.tar --verify --policy strict.json
   ```
 
+### Runtime Integration
+
+- [ ] **ct run** — Delegate to configured runtime (including Svalinn)
+  ```bash
+  ct run nginx.ctp                     # Uses default runtime
+  ct run nginx.ctp --runtime=svalinn   # Explicit Svalinn
+  ct run nginx.ctp --runtime=podman    # Explicit podman
+  ct run nginx.ctp -- -p 8080:80       # Pass args to runtime
+  ```
+  - Verify before run (unless --no-verify)
+  - Configure default runtime in config.toml
+  - Svalinn integration per spec/svalinn-integration.adoc
+
+- [ ] **ct unpack** — Extract OCI layout for external tooling
+  ```bash
+  ct unpack nginx.ctp -o ./nginx-oci/  # OCI layout on disk
+  ct unpack nginx.ctp --format=docker  # Docker save format
+  ```
+  - Enables use with nerdctl, podman, docker, buildah
+  - Preserves all attestations alongside
+
+### Diagnostics
+
+- [ ] **ct doctor** — Check distribution pipeline health
+  ```bash
+  ct doctor           # Full check
+  ct doctor --quick   # Just essentials
+  ```
+  - Crypto backend availability (libsodium, liboqs)
+  - Registry access and authentication
+  - Local content store integrity
+  - Clock skew / timestamp sanity
+  - Key expiration warnings
+  - Policy file validity
+
+### Key Rotation & Revocation
+
+- [ ] **ct re-sign** — Re-sign bundle with new key (same content)
+  ```bash
+  ct re-sign nginx.ctp -k new-key-2026
+  ct re-sign nginx.ctp --add-signature  # Keep old, add new
+  ```
+  - Preserves content hashes
+  - Supports key rotation without re-packing
+  - Can add signatures (multi-signer)
+
+- [ ] **Policy deny-lists and revocation**
+  ```json
+  {
+    "signers": {
+      "denied": [
+        { "key_id": "compromised-key", "after": "2025-06-01" }
+      ]
+    },
+    "pin": {
+      "nginx.ctp": { "digest": "sha256:abc...", "signers": ["trusted-key"] }
+    }
+  }
+  ```
+  - Deny signer from specific date
+  - Pin artifact to digest + signer (not just tag)
+  - Threshold rules (require N of M signers)
+
+### Bundle Comparison
+
+- [ ] **ct diff** — Human-readable diff between bundles
+  ```bash
+  ct diff old.ctp new.ctp
+  ct diff old.ctp new.ctp --layers     # Just layer changes
+  ct diff old.ctp new.ctp --signers    # Just signer changes
+  ```
+  Output:
+  ```
+  Comparing: nginx-1.25.ctp → nginx-1.26.ctp
+
+  Layers:
+    ~ sha256:abc... → sha256:def...  (base layer changed)
+    + sha256:123...                   (new layer added)
+
+  Config:
+    ~ ENV["NGINX_VERSION"] = "1.25" → "1.26"
+
+  Signatures:
+    ✓ Both signed by: cerro-official-2025
+    + New signature: nginx-maintainer-2025
+
+  Attestations:
+    ✓ SBOM present in both
+    ~ Provenance builder changed: v1.0 → v1.1
+  ```
+  - Huge QoL for trust debugging
+  - Shows what actually changed between versions
+
+### Index & Search
+
+- [ ] **ct index** — Build searchable index of bundles
+  ```bash
+  ct index ./bundles/              # Index a directory
+  ct index --update                # Update existing index
+  ```
+
+- [ ] **ct search** — Search bundles by metadata
+  ```bash
+  ct search nginx                  # By name
+  ct search --signer cerro-*       # By signer
+  ct search --has-sbom             # Has SBOM attestation
+  ct search --digest sha256:abc    # By source image digest
+  ct search --after 2025-01-01     # By date
+  ```
+  Searchable fields:
+  - Name, version, description
+  - Source image digest
+  - Signer key IDs and fingerprints
+  - SBOM presence, license info
+  - Build provenance (builder, date)
+  - Base image lineage
+
 ### Post-Quantum Signatures
 
 - [ ] **ML-DSA-65 (Dilithium)** via liboqs bindings
@@ -150,6 +267,7 @@ The project structure and architecture are defined. Core modules exist as stubs 
 - [ ] **ct policy init** — Create starter policy interactively
 - [ ] **ct policy add-signer** — Trust a signer
 - [ ] **ct policy add-registry** — Allow a registry
+- [ ] **ct policy deny** — Add to deny-list
 
 ---
 
@@ -168,7 +286,7 @@ The project structure and architecture are defined. Core modules exist as stubs 
 
 - [ ] **SELinux policy** — CIL policy generation
 - [ ] **OSTree export** — Compatible with rpm-ostree
-- [ ] **Svalinn integration** — Per spec/svalinn-integration.adoc
+- [ ] **Svalinn deep integration** — Shared trust store, attestation passing
 
 ### Quality
 
@@ -185,7 +303,7 @@ The project structure and architecture are defined. Core modules exist as stubs 
 
 - [ ] **Debian importer** — Import from Debian source packages
   ```bash
-  ct import debian:nginx/1.26.0-1 -o nginx.ctp
+  ct build debian:nginx/1.26.0-1 -o nginx.ctp
   ```
 - [ ] **Fedora importer** — Import from SRPMs
 - [ ] **Alpine importer** — Import from APKBUILDs
@@ -227,6 +345,9 @@ The project structure and architecture are defined. Core modules exist as stubs 
 - [ ] Documentation complete enough for others to try
 
 ### v0.2 Success
+- [ ] `ct run` works with Svalinn and podman
+- [ ] `ct doctor` catches common setup issues
+- [ ] `ct diff` helps debug trust issues
 - [ ] Offline export/import works for airgapped environments
 - [ ] Post-quantum signatures work (CT-SIG-02)
 - [ ] At least one external contributor

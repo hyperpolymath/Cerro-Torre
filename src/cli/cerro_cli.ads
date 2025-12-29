@@ -47,4 +47,48 @@ package Cerro_CLI is
    --  Usage: ct import <archive> [--verify]
    procedure Run_Import;
 
+   --  ======== Runtime Integration (v0.2) ========
+
+   --  Run bundle via configured runtime (Svalinn, podman, etc.)
+   --  Usage: ct run <bundle.ctp> [--runtime=<name>] [-- <args>]
+   procedure Run_Run;
+
+   --  Unpack bundle to OCI layout on disk
+   --  Usage: ct unpack <bundle.ctp> -o <dir> [--format=oci|docker]
+   procedure Run_Unpack;
+
+   --  ======== Diagnostics (v0.2) ========
+
+   --  Check distribution pipeline health
+   --  Usage: ct doctor [--quick]
+   procedure Run_Doctor;
+
+   --  ======== Key Rotation (v0.2) ========
+
+   --  Re-sign bundle with new key (preserves content)
+   --  Usage: ct re-sign <bundle.ctp> -k <key-id> [--add-signature]
+   procedure Run_Resign;
+
+   --  ======== Bundle Comparison (v0.2) ========
+
+   --  Human-readable diff between bundles
+   --  Usage: ct diff <old.ctp> <new.ctp> [--layers|--signers]
+   procedure Run_Diff;
+
+   --  ======== Index & Search (v0.2) ========
+
+   --  Build searchable index of bundles
+   --  Usage: ct index <dir> [--update]
+   procedure Run_Index;
+
+   --  Search bundles by metadata
+   --  Usage: ct search <query> [--signer|--has-sbom|--digest|--after]
+   procedure Run_Search;
+
+   --  ======== Policy Helpers (v0.2) ========
+
+   --  Policy management subcommands
+   --  Usage: ct policy <init|add-signer|add-registry|deny>
+   procedure Run_Policy;
+
 end Cerro_CLI;

@@ -29,11 +29,25 @@ begin
       Put_Line ("  keygen                    Generate signing keypair");
       Put_Line ("  key <subcommand>          Key management (list, import, export)");
       Put_Line ("");
-      Put_Line ("Distribution (v0.2):");
+      Put_Line ("Distribution:");
       Put_Line ("  fetch <ref> -o <file>     Fetch bundle from registry");
       Put_Line ("  push <bundle> <dest>      Push bundle to registry");
       Put_Line ("  export <bundles> -o <ar>  Export for offline transfer");
       Put_Line ("  import <archive>          Import from offline archive");
+      Put_Line ("");
+      Put_Line ("Runtime:");
+      Put_Line ("  run <bundle>              Run via Svalinn/podman/docker");
+      Put_Line ("  unpack <bundle> -o <dir>  Extract to OCI layout");
+      Put_Line ("");
+      Put_Line ("Diagnostics:");
+      Put_Line ("  doctor                    Check pipeline health");
+      Put_Line ("  diff <old> <new>          Compare bundles");
+      Put_Line ("");
+      Put_Line ("Maintenance:");
+      Put_Line ("  re-sign <bundle> -k <key> Re-sign with new key");
+      Put_Line ("  policy <subcommand>       Policy management");
+      Put_Line ("  index <dir>               Build searchable index");
+      Put_Line ("  search <query>            Search bundles");
       Put_Line ("");
       Put_Line ("Options:");
       Put_Line ("  --help, -h                Show this help");
@@ -42,7 +56,8 @@ begin
       Put_Line ("Examples:");
       Put_Line ("  ct pack docker.io/library/nginx:1.26 -o nginx.ctp");
       Put_Line ("  ct verify nginx.ctp --policy strict.json");
-      Put_Line ("  ct explain nginx.ctp");
+      Put_Line ("  ct run nginx.ctp --runtime=svalinn");
+      Put_Line ("  ct diff old.ctp new.ctp");
       Put_Line ("");
       Set_Exit_Status (Failure);
       return;
@@ -77,7 +92,7 @@ begin
       elsif Command = "key" then
          Cerro_CLI.Run_Key;
 
-      --  Distribution commands (v0.2)
+      --  Distribution commands
       elsif Command = "fetch" then
          Cerro_CLI.Run_Fetch;
 
@@ -89,6 +104,33 @@ begin
 
       elsif Command = "import" then
          Cerro_CLI.Run_Import;
+
+      --  Runtime integration
+      elsif Command = "run" then
+         Cerro_CLI.Run_Run;
+
+      elsif Command = "unpack" then
+         Cerro_CLI.Run_Unpack;
+
+      --  Diagnostics
+      elsif Command = "doctor" then
+         Cerro_CLI.Run_Doctor;
+
+      elsif Command = "diff" then
+         Cerro_CLI.Run_Diff;
+
+      --  Maintenance
+      elsif Command = "re-sign" then
+         Cerro_CLI.Run_Resign;
+
+      elsif Command = "policy" then
+         Cerro_CLI.Run_Policy;
+
+      elsif Command = "index" then
+         Cerro_CLI.Run_Index;
+
+      elsif Command = "search" then
+         Cerro_CLI.Run_Search;
 
       else
          Put_Line ("Unknown command: " & Command);
