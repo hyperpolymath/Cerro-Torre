@@ -1,8 +1,13 @@
 # Cerro-Torre - Development Tasks
+# SPDX-License-Identifier: Apache-2.0 OR MIT
 set shell := ["bash", "-uc"]
 set dotenv-load := true
 
 project := "Cerro-Torre"
+build_mode := env_var_or_default("CERRO_BUILD_MODE", "Development")
+
+# Toolbox prefix - use toolbox on Fedora Kinoite/Silverblue
+tb := if `command -v toolbox >/dev/null 2>&1 && echo yes || echo no` == "yes" { "toolbox run" } else { "" }
 
 # Show all recipes
 default:

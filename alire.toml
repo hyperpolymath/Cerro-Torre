@@ -10,16 +10,12 @@ licenses = "Apache-2.0 OR MIT"
 website = "https://cerro-torre.org"
 tags = ["security", "supply-chain", "linux", "containers", "provenance"]
 
-[build-profiles]
-"*".Proof = { switches = ["-gnatVa", "-gnaty3abcefhiklmnoprstux"] }
-"*".Development = { switches = ["-g", "-gnata", "-gnatVa", "-gnatwa", "-gnatyM120"] }
-"*".Release = { switches = ["-O2", "-gnatn", "-gnatVa"] }
+executables = ["cerro"]
 
-# Note: Dependencies are listed but may require crate availability in Alire index
-# Some may need manual setup or alternative crates
-
+# Dependencies - start minimal, add as needed
+# Pin to gnatcoll 25 due to project file resolution issue in 26
 [[depends-on]]
-gnatcoll = ">=24.0.0"
+gnatcoll = "~25.0.0"
 
 # For TOML parsing (manifest files)
 [[depends-on]]
@@ -27,7 +23,22 @@ toml_slicer = "*"
 
 # For JSON handling (provenance, SBOM output)
 [[depends-on]]
-json_ada = "*"
+json = "*"
+
+# For HTTP client (source fetching) - MVP
+# Uncomment when ready to implement fetcher
+# [[depends-on]]
+# aws = ">=24.0.0"
+
+# For HTTP client (source fetching) - MVP
+# Uncomment when ready to implement fetcher
+# [[depends-on]]
+# aws = ">=24.0.0"
+
+# For cryptography (SHA256, Ed25519) - MVP
+# Uncomment when libsodium-ada binding is available or use manual C binding
+# [[depends-on]]
+# libsodium = "*"
 
 # For HTTP client (source fetching) - MVP
 # Uncomment when ready to implement fetcher
@@ -47,11 +58,3 @@ CERRO_BUILD_MODE = ["Development", "Release", "Proof"]
 
 [gpr-set-externals]
 CERRO_BUILD_MODE = "Development"
-
-[configuration]
-generate_ada = true
-generate_gpr = true
-generate_c = false
-
-[origin]
-# This will be filled in when published to Alire index
