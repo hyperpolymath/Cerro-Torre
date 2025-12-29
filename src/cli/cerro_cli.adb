@@ -227,10 +227,10 @@ package body Cerro_CLI is
    end Run_Push;
 
    ------------
-   -- Export --
+   -- Keygen --
    ------------
 
-   procedure Run_Export is
+   procedure Run_Keygen is
    begin
       Put_Line ("Usage: ct export <bundles...> -o <archive>");
       Put_Line ("");
