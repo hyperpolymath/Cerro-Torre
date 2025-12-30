@@ -227,26 +227,6 @@ package body Cerro_CLI is
    end Run_Push;
 
    ------------
-   -- Keygen --
-   ------------
-
-   procedure Run_Keygen is
-   begin
-      Put_Line ("Usage: ct export <bundles...> -o <archive>");
-      Put_Line ("");
-      Put_Line ("Export bundles for offline transfer.");
-      Put_Line ("");
-      Put_Line ("Options:");
-      Put_Line ("  -o, --output <file>    Output archive path");
-      Put_Line ("  --manifest <file>      File listing bundles to export");
-      Put_Line ("  --include-keys         Include public keys for verification");
-      Put_Line ("  --format <fmt>         Archive format: tar, tar.gz, tar.zst");
-      Put_Line ("");
-      Put_Line ("(v0.2 - Not yet implemented)");
-      Set_Exit_Status (CT_Errors.Exit_General_Failure);
-   end Run_Export;
-
-   ------------
    -- Import --
    ------------
 
