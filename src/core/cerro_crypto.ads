@@ -34,7 +34,7 @@ is
    type Ed25519_Signature is array (Signature_Index) of Unsigned_8;
 
    --  Hash algorithm enumeration
-   type Hash_Algorithm is (SHA256, SHA384, SHA512, Blake3);
+   type Hash_Algorithm is (SHA256, SHA384, SHA512, Blake3, Shake256);
 
    --  Maximum input size for hashing (prevent overflow in length encoding)
    Max_Hash_Input_Length : constant := 2**32 - 1 - 64;
@@ -79,10 +79,15 @@ is
       with Global => null,
            Pre    => Hex'Length = 64;
 
-   --  Convert bytes to hex string
+   --  Convert bytes to hex string (SHA-256)
    function Bytes_To_Hex (Digest : SHA256_Digest) return String
       with Global => null,
            Post   => Bytes_To_Hex'Result'Length = 64;
+
+   --  Convert bytes to hex string (SHA-512)
+   function Bytes_To_Hex_512 (Digest : SHA512_Digest) return String
+      with Global => null,
+           Post   => Bytes_To_Hex_512'Result'Length = 128;
 
    --  Constant-time comparison to prevent timing attacks
    function Constant_Time_Equal

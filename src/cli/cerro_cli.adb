@@ -4,7 +4,10 @@
 
 with Ada.Text_IO;
 with Ada.Command_Line;
+with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with CT_Errors;
+with Cerro_Pack;
+with Cerro_Verify;
 
 package body Cerro_CLI is
 
@@ -16,40 +19,82 @@ package body Cerro_CLI is
    ----------
 
    procedure Run_Pack is
+      Opts        : Cerro_Pack.Pack_Options;
+      Output_Set  : Boolean := False;
+      Verbose     : Boolean := False;
    begin
       if Argument_Count < 2 then
-         Put_Line ("Usage: ct pack <image-ref> -o <output.ctp>");
+         Put_Line ("Usage: ct pack <manifest.ctp> -o <output.ctp>");
          Put_Line ("");
-         Put_Line ("Create a verifiable .ctp bundle from an OCI image.");
+         Put_Line ("Create a .ctp bundle from a manifest file.");
          Put_Line ("");
          Put_Line ("Examples:");
-         Put_Line ("  ct pack docker.io/library/nginx:1.26 -o nginx.ctp");
-         Put_Line ("  ct pack oci:./local-image -o local.ctp");
-         Put_Line ("  ct pack ghcr.io/org/app:v1 -o app.ctp -k my-key");
+         Put_Line ("  ct pack ./hello.ctp -o hello-bundle.ctp");
+         Put_Line ("  ct pack manifests/nginx.ctp -o nginx-bundle.ctp -v");
          Put_Line ("");
          Put_Line ("Options:");
          Put_Line ("  -o, --output <file>    Output path for .ctp bundle (required)");
-         Put_Line ("  -k, --key <key-id>     Signing key to use (default: default key)");
-         Put_Line ("  --suite <suite-id>     Crypto suite (default: CT-SIG-01)");
-         Put_Line ("  --no-sign              Create unsigned bundle");
+         Put_Line ("  -s, --sources <dir>    Include source files from directory");
+         Put_Line ("  -v, --verbose          Show detailed progress");
+         Put_Line ("  --no-sign              Create unsigned bundle (default for MVP)");
          Set_Exit_Status (CT_Errors.Exit_General_Failure);
          return;
       end if;
 
+      --  Parse arguments
+      Opts.Manifest_Path := To_Unbounded_String (Argument (2));
+
       declare
-         Image_Ref : constant String := Argument (2);
+         I : Positive := 3;
       begin
-         Put_Line ("Packing image: " & Image_Ref);
-         Put_Line ("");
-         Put_Line ("(Not yet implemented)");
-         Put_Line ("");
-         Put_Line ("This command will:");
-         Put_Line ("  1. Read OCI image metadata (via skopeo)");
-         Put_Line ("  2. Generate canonical manifest.toml");
-         Put_Line ("  3. Generate summary.json with all digests");
-         Put_Line ("  4. Sign with specified key");
-         Put_Line ("  5. Write .ctp bundle");
+         while I <= Argument_Count loop
+            declare
+               Arg : constant String := Argument (I);
+            begin
+               if Arg = "-o" or Arg = "--output" then
+                  if I < Argument_Count then
+                     I := I + 1;
+                     Opts.Output_Path := To_Unbounded_String (Argument (I));
+                     Output_Set := True;
+                  end if;
+               elsif Arg = "-s" or Arg = "--sources" then
+                  if I < Argument_Count then
+                     I := I + 1;
+                     Opts.Source_Dir := To_Unbounded_String (Argument (I));
+                  end if;
+               elsif Arg = "-v" or Arg = "--verbose" then
+                  Opts.Verbose := True;
+                  Verbose := True;
+               end if;
+            end;
+            I := I + 1;
+         end loop;
+      end;
+
+      --  Validate required options
+      if not Output_Set then
+         Put_Line ("Error: Output path required (-o <file>)");
          Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      --  Run pack
+      if Verbose then
+         Put_Line ("Packing manifest: " & To_String (Opts.Manifest_Path));
+         Put_Line ("Output: " & To_String (Opts.Output_Path));
+         Put_Line ("");
+      end if;
+
+      declare
+         Result : constant Cerro_Pack.Pack_Result := Cerro_Pack.Create_Bundle (Opts);
+      begin
+         if Result.Success then
+            Put_Line ("✓ Bundle created: " & To_String (Result.Bundle_Path));
+            Set_Exit_Status (0);
+         else
+            Put_Line ("✗ Pack failed: " & To_String (Result.Error_Msg));
+            Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         end if;
       end;
    end Run_Pack;
 
@@ -58,6 +103,8 @@ package body Cerro_CLI is
    ------------
 
    procedure Run_Verify is
+      Opts    : Cerro_Verify.Verify_Options;
+      Verbose : Boolean := False;
    begin
       if Argument_Count < 2 then
          Put_Line ("Usage: ct verify <bundle.ctp> [--policy <file>]");
@@ -83,19 +130,81 @@ package body Cerro_CLI is
          return;
       end if;
 
+      --  Parse arguments
+      Opts.Bundle_Path := To_Unbounded_String (Argument (2));
+
       declare
-         Bundle_Path : constant String := Argument (2);
+         I : Positive := 3;
       begin
-         Put_Line ("Verifying bundle: " & Bundle_Path);
-         Put_Line ("");
-         Put_Line ("(Not yet implemented)");
-         Put_Line ("");
-         Put_Line ("This command will:");
-         Put_Line ("  1. Parse bundle structure");
-         Put_Line ("  2. Verify all content hashes match summary");
-         Put_Line ("  3. Verify signatures against policy");
-         Put_Line ("  4. Return specific exit code for each failure type");
-         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         while I <= Argument_Count loop
+            declare
+               Arg : constant String := Argument (I);
+            begin
+               if Arg = "--policy" then
+                  if I < Argument_Count then
+                     I := I + 1;
+                     Opts.Policy_Path := To_Unbounded_String (Argument (I));
+                  end if;
+               elsif Arg = "--offline" then
+                  Opts.Offline := True;
+               elsif Arg = "-v" or Arg = "--verbose" then
+                  Opts.Verbose := True;
+                  Verbose := True;
+               end if;
+            end;
+            I := I + 1;
+         end loop;
+      end;
+
+      --  Run verification
+      declare
+         Result : constant Cerro_Verify.Verify_Result :=
+            Cerro_Verify.Verify_Bundle (Opts);
+         Exit_Code : constant Integer := Cerro_Verify.To_Exit_Code (Result.Code);
+      begin
+         if Verbose then
+            Put_Line ("Bundle: " & To_String (Opts.Bundle_Path));
+            Put_Line ("");
+         end if;
+
+         case Result.Code is
+            when Cerro_Verify.OK =>
+               Put_Line ("✓ Verification successful");
+               if Length (Result.Package_Name) > 0 then
+                  Put_Line ("  Package: " & To_String (Result.Package_Name) &
+                            " " & To_String (Result.Package_Ver));
+               end if;
+               if Verbose then
+                  Put_Line ("  Manifest hash: " & To_String (Result.Manifest_Hash));
+               end if;
+
+            when Cerro_Verify.Hash_Mismatch =>
+               Put_Line ("✗ Hash mismatch - content may have been tampered");
+               Put_Line ("  " & To_String (Result.Details));
+
+            when Cerro_Verify.Signature_Invalid =>
+               Put_Line ("✗ Signature verification failed");
+
+            when Cerro_Verify.Key_Not_Trusted =>
+               Put_Line ("✗ Signing key not trusted by policy");
+
+            when Cerro_Verify.Policy_Rejection =>
+               Put_Line ("✗ Bundle rejected by policy");
+               Put_Line ("  " & To_String (Result.Details));
+
+            when Cerro_Verify.Missing_Attestation =>
+               Put_Line ("✗ Missing required attestation");
+
+            when Cerro_Verify.Malformed_Bundle =>
+               Put_Line ("✗ Malformed bundle");
+               Put_Line ("  " & To_String (Result.Details));
+
+            when Cerro_Verify.IO_Error =>
+               Put_Line ("✗ I/O error");
+               Put_Line ("  " & To_String (Result.Details));
+         end case;
+
+         Set_Exit_Status (Ada.Command_Line.Exit_Status (Exit_Code));
       end;
    end Run_Verify;
 
@@ -246,11 +355,11 @@ package body Cerro_CLI is
       Set_Exit_Status (CT_Errors.Exit_General_Failure);
    end Run_Import;
 
-   ---------
-   -- Run --
-   ---------
+   ------------
+   -- Export --
+   ------------
 
-   procedure Run_Run is
+   procedure Run_Export is
    begin
       Put_Line ("Usage: ct export <bundles...> -o <archive>");
       Put_Line ("");
@@ -265,26 +374,6 @@ package body Cerro_CLI is
       Put_Line ("(v0.2 - Not yet implemented)");
       Set_Exit_Status (CT_Errors.Exit_General_Failure);
    end Run_Export;
-
-   ------------
-   -- Import --
-   ------------
-
-   procedure Run_Import is
-   begin
-      Put_Line ("Usage: ct import <archive> [--verify]");
-      Put_Line ("");
-      Put_Line ("Import from offline archive.");
-      Put_Line ("");
-      Put_Line ("Options:");
-      Put_Line ("  --verify            Verify each bundle after import");
-      Put_Line ("  --policy <file>     Policy for verification");
-      Put_Line ("  --keys-only         Only import keys, not bundles");
-      Put_Line ("  --output-dir <dir>  Where to place imported bundles");
-      Put_Line ("");
-      Put_Line ("(v0.2 - Not yet implemented)");
-      Set_Exit_Status (CT_Errors.Exit_General_Failure);
-   end Run_Import;
 
    ---------
    -- Run --

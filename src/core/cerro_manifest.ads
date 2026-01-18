@@ -35,7 +35,7 @@ is
    end record;
 
    --  Hash specification
-   type Hash_Algorithm is (SHA256, SHA384, SHA512, Blake3);
+   type Hash_Algorithm is (SHA256, SHA384, SHA512, Blake3, Shake256);
 
    type Hash_Value is record
       Algorithm : Hash_Algorithm;

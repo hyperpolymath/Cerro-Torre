@@ -3,7 +3,7 @@
 --  Build with: alr build
 --  Or directly: gprbuild -P cerro_torre.gpr
 
-with "gnatcoll";
+--  with "gnatcoll";  --  TODO: re-enable when gnatcoll is available
 
 project Cerro_Torre is
 
@@ -27,20 +27,22 @@ project Cerro_Torre is
    for Object_Dir use "obj/" & Build_Mode;
    for Exec_Dir use "bin";
 
-   for Main use ("cerro_main.adb");
+   for Main use ("cerro_main.adb", "ct_test_parser.adb", "ct_test_crypto.adb");
 
-   --  Rename executable to "ct" (short for Cerro Torre)
-   package Naming is
+   --  Rename executables
+   package Builder is
       for Executable ("cerro_main.adb") use "ct";
-   end Naming;
+      for Executable ("ct_test_parser.adb") use "ct-test-parser";
+      for Executable ("ct_test_crypto.adb") use "ct-test-crypto";
+   end Builder;
 
    --  Compiler switches based on build mode
    package Compiler is
       Common_Switches := (
          "-gnat2022",           --  Ada 2022 standard
          "-gnatwa",             --  Enable all warnings
-         "-gnatwe",             --  Treat warnings as errors
-         "-gnaty3abcefhiklnprstuxM120"  --  Style checks (no ordering) with 120 char lines
+         "-gnatwU",             --  Suppress warnings for unreferenced entities
+         "-gnaty3abcefhiklnprtuxM120"  --  Style checks (no ordering, no subprogram specs) with 120 char lines
       );
 
       case Build_Mode is

@@ -46,7 +46,7 @@ is
    type Predicate_Type is
       (SLSA_Provenance,    --  SLSA provenance predicate
        SPDX_SBOM,          --  SPDX SBOM predicate
-       Cerro_Provenance);  --  Cerro Torre native predicate
+       CT_Native);         --  Cerro Torre native predicate
 
    --  Builder identity
    type Builder_Identity is record
@@ -80,8 +80,8 @@ is
    ------------------------
 
    type Attestation is record
-      Statement_Type   : Cerro_Provenance.Statement_Type;
-      Predicate_Type   : Cerro_Provenance.Predicate_Type;
+      Stmt_Type        : Statement_Type;
+      Pred_Type        : Predicate_Type;
       Subjects         : Subject_List;
       Builder          : Builder_Identity;
       Invocation       : Build_Invocation;
