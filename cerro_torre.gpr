@@ -16,6 +16,7 @@ project Cerro_Torre is
       "src/core",
       "src/cli",
       "src/build",
+      "src/runtime",
       "src/policy",
       "src/importers/debian",
       "src/importers/fedora",
