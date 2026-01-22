@@ -95,7 +95,7 @@ See [spec/manifest-format.md](spec/manifest-format.md) for the full specificatio
 Cerro Torre tooling is dual-licensed under your choice of:
 
 - *Palimpsest-MPL-1.0 License* — Maximum permissiveness
-- *AGPL-3.0-or-later* — Copyleft with network provisions
+- *PMPL-1.0-or-later* — Copyleft with network provisions
 
 The *Palimpsest Covenant* travels alongside as a values commitment (not a legal requirement). Community members are encouraged to adopt it.
 
@@ -309,6 +309,6 @@ Read the link:governance/covenant.md[Palimpsest Covenant] first. If those values
 Dual-licensed under:
 
 * Palimpsest-MPL-1.0 License
-* AGPL-3.0-or-later
+* PMPL-1.0-or-later
 
 See link:LICENSE.txt[LICENSE.txt] for details.
