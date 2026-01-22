@@ -6,7 +6,11 @@ authors = ["Cerro Torre Cooperative"]
 maintainers = ["cerro-torre@example.org"]
 maintainers-logins = ["cerro-torre"]
 
-licenses = "PMPL-1.0-or-later"
+licenses = "MPL-2.0"
+# Note: Actual project license is PMPL-1.0-or-later (Palimpsest-MPL),
+# which is based on MPL-2.0 with ethical use and provenance extensions.
+# Alire requires standard SPDX identifiers, so MPL-2.0 (the base license)
+# is declared here. See LICENSE file for complete PMPL-1.0-or-later terms.
 website = "https://cerro-torre.org"
 tags = ["security", "supply-chain", "linux", "containers", "provenance"]
 
@@ -20,15 +24,16 @@ gnatcoll = "~25.0.0"
 
 # For TOML parsing (manifest files)
 [[depends-on]]
-toml_slicer = "*"
+ada_toml = "*"
 
 # For JSON handling (provenance, SBOM output)
 [[depends-on]]
 json = "*"
 
 # For HTTP client (source fetching, registry, transparency) - v0.2
-[[depends-on]]
-aws = ">=24.0.0"
+# Temporarily disabled due to dependency conflicts with gnatcoll 25
+# [[depends-on]]
+# aws = ">=24.0.0"
 
 # For cryptography (SHA256, Ed25519) - MVP
 # Uncomment when libsodium-ada binding is available
