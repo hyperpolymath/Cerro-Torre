@@ -243,13 +243,23 @@ ct man <topic>                             # Man-page style docs
 |Validates `.ctp` bundles before deployment
 
 |*Vörðr*
-|Container runtime
+|Container runtime (native)
 |Verifies attestations, executes containers
 
 |*verified-container-spec*
 |Protocol specification
-|Defines attestation formats
+|Defines attestation formats and runtime integration
+
+|*nerdctl/containerd*
+|Container runtime (via plugin/shim)
+|Runs `.ctp` bundles with verification enforcement
+
+|*Podman*
+|Container runtime (via hooks)
+|Runs `.ctp` bundles with verification enforcement
 |===
+
+See the https://github.com/hyperpolymath/verified-container-spec/blob/main/spec/runtime-integration.adoc[Runtime Integration Specification] for implementation details.
 
 === End-to-End Workflow
 
@@ -261,12 +271,22 @@ ct pack docker.io/library/nginx:1.26 -o nginx.ctp
 # 2. Verify the bundle
 ct verify nginx.ctp --policy strict.json
 
-# 3. Run via Svalinn gateway (which delegates to Vörðr)
-ct run nginx.ctp --runtime=svalinn
+# 3. Run with your choice of runtime:
 
-# Or run directly with Vörðr
+# Option A: Vörðr (native .ctp support)
 vordr run nginx.ctp --verify
+
+# Option B: nerdctl with verified-container shim
+nerdctl run nginx.ctp --verify
+
+# Option C: Podman with verification hooks
+podman run nginx.ctp --verify
+
+# Option D: Via Svalinn gateway (delegates to Vörðr)
+ct run nginx.ctp --runtime=svalinn
 ----
+
+See https://github.com/hyperpolymath/verified-container-spec/blob/main/spec/runtime-integration.adoc[Runtime Integration Specification] for details on runtime support.
 
 == Project Structure
 
