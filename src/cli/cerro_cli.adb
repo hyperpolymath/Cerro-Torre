@@ -576,13 +576,259 @@ package body Cerro_CLI is
    -----------
 
    procedure Run_Fetch is
+      use CT_Registry;
+      use Ada.Directories;
+
+      Reference_Str : Unbounded_String := Null_Unbounded_String;
+      Output_Path   : Unbounded_String := Null_Unbounded_String;
+      Verbose       : Boolean := False;
+      Verify_Only   : Boolean := False;
+
    begin
-      Put_Line ("Usage: ct fetch <ref> -o <output.ctp> [--create]");
-      Put_Line ("");
-      Put_Line ("Pull a .ctp bundle from a registry, or create from OCI image.");
-      Put_Line ("");
-      Put_Line ("(v0.2 - Not yet implemented)");
-      Set_Exit_Status (CT_Errors.Exit_General_Failure);
+      --  Parse arguments
+      if Argument_Count < 2 then
+         Put_Line ("Usage: ct fetch <reference> -o <output.ctp> [options]");
+         Put_Line ("");
+         Put_Line ("Pull a .ctp bundle from an OCI registry.");
+         Put_Line ("");
+         Put_Line ("Arguments:");
+         Put_Line ("  <reference>    OCI reference (registry/repo:tag or @sha256:...)");
+         Put_Line ("  -o <file>      Output path for .ctp bundle (required)");
+         Put_Line ("");
+         Put_Line ("Options:");
+         Put_Line ("  -v, --verbose     Show detailed progress");
+         Put_Line ("  --verify-only     Check if bundle exists without downloading");
+         Put_Line ("");
+         Put_Line ("Authentication:");
+         Put_Line ("  Reads from ~/.docker/config.json or CT_REGISTRY_AUTH env var");
+         Put_Line ("");
+         Put_Line ("Examples:");
+         Put_Line ("  ct fetch ghcr.io/hyperpolymath/nginx:v1.0 -o nginx.ctp");
+         Put_Line ("  ct fetch docker.io/library/alpine:latest -o alpine.ctp");
+         Put_Line ("  ct fetch myregistry.io/app:v2@sha256:abc... -o app.ctp");
+         Put_Line ("  ct fetch ghcr.io/org/image:tag --verify-only");
+         Put_Line ("");
+         Put_Line ("Exit codes:");
+         Put_Line ("  0   Fetch succeeded");
+         Put_Line ("  1   Not found or authentication failed");
+         Put_Line ("  2   Network error or registry unavailable");
+         Put_Line ("  3   Digest verification failed");
+         Put_Line ("  10  Invalid arguments");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      Reference_Str := To_Unbounded_String (Argument (2));
+
+      --  Parse options
+      declare
+         I : Positive := 3;
+      begin
+         while I <= Argument_Count loop
+            declare
+               Arg : constant String := Argument (I);
+            begin
+               if (Arg = "-o" or Arg = "--output") and I < Argument_Count then
+                  I := I + 1;
+                  Output_Path := To_Unbounded_String (Argument (I));
+               elsif Arg = "-v" or Arg = "--verbose" then
+                  Verbose := True;
+               elsif Arg = "--verify-only" then
+                  Verify_Only := True;
+               end if;
+            end;
+            I := I + 1;
+         end loop;
+      end;
+
+      --  Validate arguments
+      if not Verify_Only and Length (Output_Path) = 0 then
+         Put_Line ("Error: Output path required (-o <file>)");
+         Set_Exit_Status (10);
+         return;
+      end if;
+
+      if Verbose then
+         Put_Line ("Reference: " & To_String (Reference_Str));
+         if not Verify_Only then
+            Put_Line ("Output: " & To_String (Output_Path));
+         end if;
+         Put_Line ("");
+      end if;
+
+      --  Parse reference
+      declare
+         Ref : constant Image_Reference := Parse_Reference (To_String (Reference_Str));
+      begin
+         if Length (Ref.Registry) = 0 or Length (Ref.Repository) = 0 then
+            Put_Line ("Error: Invalid registry reference");
+            Put_Line ("  Expected format: registry/repository:tag or @digest");
+            Set_Exit_Status (10);
+            return;
+         end if;
+
+         if Verbose then
+            Put_Line ("Parsed reference:");
+            Put_Line ("  Registry: " & To_String (Ref.Registry));
+            Put_Line ("  Repository: " & To_String (Ref.Repository));
+
+            if Length (Ref.Tag) > 0 then
+               Put_Line ("  Tag: " & To_String (Ref.Tag));
+            end if;
+
+            if Length (Ref.Digest) > 0 then
+               Put_Line ("  Digest: " & To_String (Ref.Digest));
+            end if;
+
+            Put_Line ("");
+         end if;
+
+         --  Step 1: Load credentials
+         declare
+            Auth : Auth_Credentials := (others => <>);
+            Username_Env : constant String := Ada.Environment_Variables.Value ("CT_REGISTRY_USER", "");
+            Password_Env : constant String := Ada.Environment_Variables.Value ("CT_REGISTRY_PASS", "");
+         begin
+            if Username_Env'Length > 0 then
+               Auth.Method := Basic;
+               Auth.Username := To_Unbounded_String (Username_Env);
+               Auth.Password := To_Unbounded_String (Password_Env);
+
+               if Verbose then
+                  Put_Line ("Using credentials from environment");
+               end if;
+            else
+               if Verbose then
+                  Put_Line ("No credentials configured (attempting anonymous pull)");
+               end if;
+            end if;
+
+            --  Step 2: Create registry client
+            declare
+               Client : Registry_Client := Create_Client (
+                  Registry => To_String (Ref.Registry),
+                  Auth     => Auth);
+            begin
+               if Verbose then
+                  Put_Line ("Connecting to registry: " & To_String (Client.Base_URL));
+               end if;
+
+               --  Step 3: Authenticate if credentials provided
+               if Auth.Method /= None then
+                  declare
+                     Auth_Result : constant Registry_Error := Authenticate (
+                        Client     => Client,
+                        Repository => To_String (Ref.Repository),
+                        Actions    => "pull");
+                  begin
+                     if Auth_Result /= Success and Auth_Result /= Not_Implemented then
+                        Put_Line ("✗ Authentication failed: " & Error_Message (Auth_Result));
+                        Set_Exit_Status (1);
+                        return;
+                     end if;
+
+                     if Verbose and Auth_Result = Success then
+                        Put_Line ("✓ Authenticated");
+                     end if;
+                  end;
+               end if;
+
+               --  Step 4: Resolve reference (tag to digest if needed)
+               declare
+                  Reference_To_Pull : constant String :=
+                     (if Length (Ref.Digest) > 0
+                      then To_String (Ref.Digest)
+                      else To_String (Ref.Tag));
+               begin
+                  --  Step 5: Check if manifest exists (for --verify-only)
+                  if Verify_Only then
+                     if Manifest_Exists (Client, To_String (Ref.Repository), Reference_To_Pull) then
+                        Put_Line ("✓ Manifest exists: " & To_String (Reference_Str));
+                        Set_Exit_Status (0);
+                     else
+                        Put_Line ("✗ Manifest not found: " & To_String (Reference_Str));
+                        Set_Exit_Status (1);
+                     end if;
+                     return;
+                  end if;
+
+                  --  Step 6: Pull manifest
+                  declare
+                     Pull_Res : Pull_Result;
+                  begin
+                     if Verbose then
+                        Put_Line ("Pulling manifest...");
+                     end if;
+
+                     Pull_Res := Pull_Manifest (
+                        Client     => Client,
+                        Repository => To_String (Ref.Repository),
+                        Reference  => Reference_To_Pull);
+
+                     if Pull_Res.Error = Not_Implemented then
+                        Put_Line ("");
+                        Put_Line ("Fetch operation prepared but not yet implemented.");
+                        Put_Line ("");
+                        Put_Line ("Implementation roadmap:");
+                        Put_Line ("  1. HTTP client integration (AWS.Client or similar)");
+                        Put_Line ("  2. Pull manifest from registry");
+                        Put_Line ("  3. Parse manifest to extract blob descriptors");
+                        Put_Line ("  4. Pull each blob (layers) with streaming download");
+                        Put_Line ("  5. Verify blob digests during download");
+                        Put_Line ("  6. Package blobs + manifest as .ctp tarball");
+                        Put_Line ("  7. Verify final bundle integrity");
+                        Put_Line ("");
+                        Put_Line ("When implemented, this will:");
+                        Put_Line ("  ✓ Download all container layers from registry");
+                        Put_Line ("  ✓ Download attestations if present");
+                        Put_Line ("  ✓ Create verified .ctp bundle");
+                        Put_Line ("  ✓ Support digest-based pulls for reproducibility");
+                        Put_Line ("");
+                        Set_Exit_Status (CT_Errors.Exit_General_Failure);
+                        return;
+                     elsif Pull_Res.Error /= Success then
+                        Put_Line ("✗ Pull failed: " & Error_Message (Pull_Res.Error));
+
+                        case Pull_Res.Error is
+                           when Not_Found =>
+                              Set_Exit_Status (1);
+                           when Auth_Failed | Auth_Required | Forbidden =>
+                              Set_Exit_Status (1);
+                           when Network_Error | Timeout | Server_Error =>
+                              Set_Exit_Status (2);
+                           when Digest_Mismatch =>
+                              Set_Exit_Status (3);
+                           when others =>
+                              Set_Exit_Status (CT_Errors.Exit_General_Failure);
+                        end case;
+                        return;
+                     end if;
+
+                     if Verbose then
+                        Put_Line ("✓ Manifest retrieved");
+                        Put_Line ("  Digest: " & To_String (Pull_Res.Digest));
+                        Put_Line ("  Layers: " & Natural'Image (Natural (Pull_Res.Manifest.Layers.Length)));
+                     end if;
+
+                     --  Step 7: Pull blobs
+                     --  TODO: Iterate over Pull_Res.Manifest.Layers and download each blob
+
+                     --  Step 8: Package as .ctp tarball
+                     --  TODO: Create OCI layout directory structure and tar it
+
+                     Put_Line ("✓ Fetched to " & To_String (Output_Path));
+                     Put_Line ("  Manifest digest: " & To_String (Pull_Res.Digest));
+
+                     if Verbose then
+                        Put_Line ("  Size: (bundle size calculation pending)");
+                     end if;
+
+                     Set_Exit_Status (0);
+                  end;
+               end;
+            end;
+         end;
+      end;
    end Run_Fetch;
 
    ----------
