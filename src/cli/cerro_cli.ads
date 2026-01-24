@@ -47,6 +47,10 @@ package Cerro_CLI is
    --  Usage: ct import <archive> [--verify]
    procedure Run_Import;
 
+   --  Transparency log operations
+   --  Usage: ct log <submit|verify|search> [args]
+   procedure Run_Log;
+
    --  ======== Runtime Integration (v0.2) ========
 
    --  Run bundle via configured runtime (Svalinn, podman, etc.)

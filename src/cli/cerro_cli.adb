@@ -11,6 +11,7 @@ with Ada.Environment_Variables;
 with GNAT.OS_Lib;
 with CT_Errors;
 with CT_Registry;
+with CT_Transparency;
 with Cerro_Pack;
 with Cerro_Verify;
 with Cerro_Explain;
@@ -1084,6 +1085,267 @@ package body Cerro_CLI is
       Put_Line ("(v0.2 - Not yet implemented)");
       Set_Exit_Status (CT_Errors.Exit_General_Failure);
    end Run_Import;
+
+   ---------
+   -- Log --
+   ---------
+
+   procedure Run_Log is
+      use CT_Transparency;
+      use Ada.Directories;
+
+   begin
+      if Argument_Count < 2 then
+         Put_Line ("Usage: ct log <subcommand> [args]");
+         Put_Line ("");
+         Put_Line ("Transparency log operations:");
+         Put_Line ("  submit <bundle.ctp>       Upload attestations to transparency logs");
+         Put_Line ("  verify <bundle.ctp>       Verify log inclusion proofs");
+         Put_Line ("  search --hash <digest>    Find entries by artifact hash");
+         Put_Line ("  search --pubkey <file>    Find entries by public key");
+         Put_Line ("  info                      Show log tree status");
+         Put_Line ("");
+         Put_Line ("Examples:");
+         Put_Line ("  ct log submit nginx.ctp");
+         Put_Line ("  ct log verify nginx.ctp");
+         Put_Line ("  ct log search --hash sha256:abc123...");
+         Put_Line ("  ct log info");
+         Put_Line ("");
+         Put_Line ("Transparency logs:");
+         Put_Line ("  Sigstore Rekor (default)  Public log at rekor.sigstore.dev");
+         Put_Line ("  CT-TLOG (future)          Cerro Torre native log");
+         Put_Line ("");
+         Put_Line ("Exit codes:");
+         Put_Line ("  0   Operation succeeded");
+         Put_Line ("  1   Entry not found or verification failed");
+         Put_Line ("  2   Network error");
+         Put_Line ("  10  Invalid arguments");
+         Set_Exit_Status (CT_Errors.Exit_General_Failure);
+         return;
+      end if;
+
+      declare
+         Subcommand : constant String := Argument (2);
+      begin
+         --  SUBMIT
+         if Subcommand = "submit" then
+            if Argument_Count < 3 then
+               Put_Line ("Usage: ct log submit <bundle.ctp> [--logs <count>]");
+               Put_Line ("");
+               Put_Line ("Upload bundle attestations to transparency logs.");
+               Put_Line ("");
+               Put_Line ("Options:");
+               Put_Line ("  --logs <N>    Submit to N logs (default: 2, quorum)");
+               Put_Line ("  --verbose     Show detailed progress");
+               Put_Line ("");
+               Put_Line ("Federated logs (default: submit to both):");
+               Put_Line ("  - Sigstore Rekor (rekor.sigstore.dev)");
+               Put_Line ("  - CT-TLOG (future: tlog.cerro-torre.dev)");
+               Set_Exit_Status (10);
+               return;
+            end if;
+
+            declare
+               Bundle_Path : constant String := Argument (3);
+               Verbose     : Boolean := False;
+               Min_Logs    : Positive := 2;
+            begin
+               --  Parse options
+               for I in 4 .. Argument_Count loop
+                  declare
+                     Arg : constant String := Argument (I);
+                  begin
+                     if Arg = "-v" or Arg = "--verbose" then
+                        Verbose := True;
+                     elsif Arg = "--logs" and I < Argument_Count then
+                        Min_Logs := Positive'Value (Argument (I + 1));
+                     end if;
+                  end;
+               end loop;
+
+               if not Ada.Directories.Exists (Bundle_Path) then
+                  Put_Line ("Error: Bundle not found: " & Bundle_Path);
+                  Set_Exit_Status (10);
+                  return;
+               end if;
+
+               if Verbose then
+                  Put_Line ("Submitting attestations from: " & Bundle_Path);
+                  Put_Line ("  Minimum logs: " & Natural'Image (Min_Logs));
+                  Put_Line ("");
+               end if;
+
+               --  TODO: Extract attestations from bundle
+               --  TODO: Submit to each log
+               declare
+                  Client : constant Log_Client := Create_Client (Sigstore_Rekor);
+                  Upload_Res : Upload_Result;
+               begin
+                  --  Placeholder: Upload dummy entry
+                  Upload_Res := Upload_Signature (
+                     Client     => Client,
+                     Signature  => "placeholder",
+                     Artifact   => Bundle_Path,
+                     Public_Key => "placeholder");
+
+                  if Upload_Res.Error = Not_Implemented then
+                     Put_Line ("");
+                     Put_Line ("Log submission prepared but not yet implemented.");
+                     Put_Line ("");
+                     Put_Line ("Implementation roadmap:");
+                     Put_Line ("  1. HTTP client integration for Rekor API");
+                     Put_Line ("  2. Extract signatures from .ctp attestations");
+                     Put_Line ("  3. Submit hashedrekord entries to Rekor");
+                     Put_Line ("  4. Store log proofs in bundle");
+                     Put_Line ("  5. Support federated logs (2+ log quorum)");
+                     Put_Line ("");
+                     Put_Line ("When implemented, this will:");
+                     Put_Line ("  ✓ Submit attestations to Sigstore Rekor");
+                     Put_Line ("  ✓ Submit to CT-TLOG (when available)");
+                     Put_Line ("  ✓ Require majority agreement (quorum)");
+                     Put_Line ("  ✓ Store inclusion proofs in bundle");
+                     Put_Line ("  ✓ Generate offline verification bundles");
+                     Put_Line ("");
+                     Set_Exit_Status (CT_Errors.Exit_General_Failure);
+                  elsif Upload_Res.Error /= Success then
+                     Put_Line ("✗ Upload failed: " & Error_Message (Upload_Res.Error));
+                     Set_Exit_Status (case Upload_Res.Error is
+                        when Network_Error => 2,
+                        when others => 1);
+                  else
+                     Put_Line ("✓ Submitted to transparency log");
+                     Put_Line ("  UUID: " & String (Upload_Res.Entry.UUID));
+                     Put_Line ("  View: " & To_String (Upload_Res.URL));
+                     Set_Exit_Status (0);
+                  end if;
+               end;
+            end;
+
+         --  VERIFY
+         elsif Subcommand = "verify" then
+            if Argument_Count < 3 then
+               Put_Line ("Usage: ct log verify <bundle.ctp>");
+               Put_Line ("");
+               Put_Line ("Verify transparency log inclusion proofs.");
+               Set_Exit_Status (10);
+               return;
+            end if;
+
+            declare
+               Bundle_Path : constant String := Argument (3);
+            begin
+               if not Ada.Directories.Exists (Bundle_Path) then
+                  Put_Line ("Error: Bundle not found: " & Bundle_Path);
+                  Set_Exit_Status (10);
+                  return;
+               end if;
+
+               Put_Line ("Verifying log proofs in: " & Bundle_Path);
+               Put_Line ("");
+
+               --  TODO: Extract log proofs from bundle
+               --  TODO: Verify each proof
+               declare
+                  Client : constant Log_Client := Create_Client (Sigstore_Rekor);
+                  Dummy_Entry : Log_Entry;
+                  Verify_Res : Verify_Result;
+               begin
+                  Dummy_Entry.UUID := (others => '0');
+
+                  Verify_Res := Verify_Entry (Client, Dummy_Entry);
+
+                  if Verify_Res.Error = Not_Implemented then
+                     Put_Line ("Log verification prepared but not yet implemented.");
+                     Put_Line ("");
+                     Put_Line ("When implemented, this will:");
+                     Put_Line ("  ✓ Verify Merkle inclusion proofs");
+                     Put_Line ("  ✓ Verify Signed Entry Timestamps (SET)");
+                     Put_Line ("  ✓ Check artifact hash matches");
+                     Put_Line ("  ✓ Verify quorum (2+ logs agree)");
+                     Set_Exit_Status (CT_Errors.Exit_General_Failure);
+                  elsif Verify_Res.Error /= Success then
+                     Put_Line ("✗ Verification failed: " & Error_Message (Verify_Res.Error));
+                     Set_Exit_Status (1);
+                  else
+                     Put_Line ("✓ All log proofs verified");
+                     Set_Exit_Status (0);
+                  end if;
+               end;
+            end;
+
+         --  SEARCH
+         elsif Subcommand = "search" then
+            if Argument_Count < 4 then
+               Put_Line ("Usage: ct log search --hash <digest> | --pubkey <file>");
+               Put_Line ("");
+               Put_Line ("Search transparency log for entries.");
+               Put_Line ("");
+               Put_Line ("Options:");
+               Put_Line ("  --hash <digest>      Search by artifact SHA256 hash");
+               Put_Line ("  --pubkey <file>      Search by public key");
+               Put_Line ("  --email <address>    Search by identity email");
+               Set_Exit_Status (10);
+               return;
+            end if;
+
+            declare
+               Search_Type : constant String := Argument (3);
+               Search_Val  : constant String := Argument (4);
+            begin
+               declare
+                  Client : constant Log_Client := Create_Client (Sigstore_Rekor);
+                  Search_Res : Lookup_Result;
+               begin
+                  if Search_Type = "--hash" then
+                     Search_Res := Search_By_Hash (Client, Search_Val);
+                  elsif Search_Type = "--pubkey" then
+                     Search_Res := Search_By_Public_Key (Client, Search_Val);
+                  elsif Search_Type = "--email" then
+                     Search_Res := Search_By_Email (Client, Search_Val);
+                  else
+                     Put_Line ("Error: Unknown search type: " & Search_Type);
+                     Set_Exit_Status (10);
+                     return;
+                  end if;
+
+                  if Search_Res.Error = Not_Implemented then
+                     Put_Line ("Log search prepared but not yet implemented.");
+                     Set_Exit_Status (CT_Errors.Exit_General_Failure);
+                  elsif Search_Res.Error /= Success then
+                     Put_Line ("✗ Search failed: " & Error_Message (Search_Res.Error));
+                     Set_Exit_Status (2);
+                  else
+                     Put_Line ("Found " & Natural'Image (Natural (Search_Res.Entries.Length)) & " entries:");
+                     for Entry of Search_Res.Entries loop
+                        Put_Line ("  UUID: " & String (Entry.UUID));
+                        Put_Line ("    Index: " & Unsigned_64'Image (Entry.Log_Index));
+                     end loop;
+                     Set_Exit_Status (0);
+                  end if;
+               end;
+            end;
+
+         --  INFO
+         elsif Subcommand = "info" then
+            declare
+               Client : constant Log_Client := Create_Client (Sigstore_Rekor);
+               Info   : constant Tree_Info := Get_Log_Info (Client);
+            begin
+               Put_Line ("Transparency Log: " & To_String (Client.Base_URL));
+               Put_Line ("  Tree size: " & Unsigned_64'Image (Info.Tree_Size));
+               if Length (Info.Root_Hash) > 0 then
+                  Put_Line ("  Root hash: " & To_String (Info.Root_Hash));
+               end if;
+               Set_Exit_Status (0);
+            end;
+
+         else
+            Put_Line ("Unknown subcommand: " & Subcommand);
+            Put_Line ("Run 'ct log' for usage.");
+            Set_Exit_Status (10);
+         end if;
+      end;
+   end Run_Log;
 
    ------------
    -- Export --
