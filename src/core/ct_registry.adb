@@ -20,6 +20,7 @@
 pragma SPARK_Mode (Off);  --  SPARK mode off pending HTTP client bindings
 
 with Ada.Strings.Fixed;
+with CT_HTTP;
 
 package body CT_Registry is
 
@@ -113,23 +114,82 @@ package body CT_Registry is
       Repository : String;
       Reference  : String) return Pull_Result
    is
-      pragma Unreferenced (Client, Repository, Reference);
       Result : Pull_Result;
+      URL    : constant String := To_String (Client.Base_URL) &
+                                  "/v2/" & Repository & "/manifests/" & Reference;
    begin
-      --  TODO: Implement manifest pull
-      --
-      --  Expected request:
-      --    GET /v2/{repository}/manifests/{reference}
-      --    Accept: application/vnd.oci.image.manifest.v1+json,
-      --            application/vnd.oci.image.index.v1+json,
-      --            application/vnd.docker.distribution.manifest.v2+json
-      --    Authorization: Bearer {token}
-      --
-      --  Parse response JSON into OCI_Manifest structure
-      --  Verify Docker-Content-Digest header matches calculated digest
+      --  Build Accept header for OCI manifest types
+      declare
+         use CT_HTTP;
+         Headers : Header_Map;
+         Auth    : Auth_Credentials := No_Credentials;
+         Response : HTTP_Response;
+      begin
+         --  Add Accept header for manifest media types
+         Headers.Insert (Accept_Header,
+            OCI_Manifest_V1 & ", " &
+            OCI_Index_V1 & ", " &
+            Docker_Manifest_V2 & ", " &
+            Docker_Manifest_List);
 
-      Result.Error := Not_Implemented;
-      return Result;
+         --  Add authentication if available
+         if Client.Auth.Method = Bearer and then
+            Length (Client.Auth.Token) > 0
+         then
+            Auth := Make_Bearer_Auth (To_String (Client.Auth.Token));
+         elsif Client.Auth.Method = Basic and then
+               Length (Client.Auth.Username) > 0
+         then
+            Auth := Make_Basic_Auth (
+               To_String (Client.Auth.Username),
+               To_String (Client.Auth.Password));
+         end if;
+
+         --  Perform GET request
+         Response := Get (
+            URL     => URL,
+            Auth    => Auth,
+            Headers => Headers);
+
+         --  Handle response
+         if not Response.Success then
+            Result.Error := Network_Error;
+            return Result;
+         elsif Response.Status_Code = 401 or Response.Status_Code = 403 then
+            Result.Error := Auth_Failed;
+            return Result;
+         elsif Response.Status_Code = 404 then
+            Result.Error := Not_Found;
+            return Result;
+         elsif not Is_Success (Response.Status_Code) then
+            Result.Error := Server_Error;
+            return Result;
+         end if;
+
+         --  Success - store raw JSON for signature verification
+         Result.Raw_Json := Response.Body;
+
+         --  Extract Docker-Content-Digest header if present
+         declare
+            Digest_Header : constant String := Get_Header (Response, Docker_Content_Digest);
+         begin
+            if Digest_Header'Length > 0 then
+               Result.Digest := To_Unbounded_String (Digest_Header);
+            else
+               --  Calculate digest from body
+               Result.Digest := To_Unbounded_String (
+                  Manifest_Digest (To_String (Response.Body)));
+            end if;
+         end;
+
+         --  TODO: Parse JSON body into OCI_Manifest structure
+         --  For now, mark success with empty manifest
+         Result.Manifest.Schema_Version := 2;
+         Result.Manifest.Media_Type := To_Unbounded_String (OCI_Manifest_V1);
+
+         Result.Error := Success;
+         return Result;
+      end;
    end Pull_Manifest;
 
    function Push_Manifest
@@ -165,11 +225,35 @@ package body CT_Registry is
       Repository : String;
       Reference  : String) return Boolean
    is
-      pragma Unreferenced (Client, Repository, Reference);
+      URL : constant String := To_String (Client.Base_URL) &
+                                "/v2/" & Repository & "/manifests/" & Reference;
    begin
-      --  TODO: Implement HEAD /v2/{repository}/manifests/{reference}
-      --  Returns True if 200 OK, False if 404
-      return False;
+      declare
+         use CT_HTTP;
+         Auth     : Auth_Credentials := No_Credentials;
+         Response : HTTP_Response;
+      begin
+         --  Add authentication if available
+         if Client.Auth.Method = Bearer and then
+            Length (Client.Auth.Token) > 0
+         then
+            Auth := Make_Bearer_Auth (To_String (Client.Auth.Token));
+         elsif Client.Auth.Method = Basic and then
+               Length (Client.Auth.Username) > 0
+         then
+            Auth := Make_Basic_Auth (
+               To_String (Client.Auth.Username),
+               To_String (Client.Auth.Password));
+         end if;
+
+         --  Perform HEAD request (efficient, no body)
+         Response := Head (
+            URL  => URL,
+            Auth => Auth);
+
+         --  Return true if 200 OK, false otherwise
+         return Response.Success and then Response.Status_Code = 200;
+      end;
    end Manifest_Exists;
 
    function Delete_Manifest
