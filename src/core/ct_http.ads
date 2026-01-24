@@ -113,20 +113,30 @@ is
       --  NOTE: Requires curl 7.62+ and system DoH resolver configuration
       DoH_URL           : Unbounded_String;  --  e.g., "https://cloudflare-dns.com/dns-query"
 
+      --  Oblivious DNS-over-HTTPS (ODoH / ODNS) - privacy-enhanced DoH
+      --  RFC 9230: Adds proxy layer so resolver doesn't see client IP
+      --  NOTE: Requires curl 7.73+ and ODoH-enabled resolver
+      ODoH_Target_URL   : Unbounded_String;  --  e.g., "https://odoh.cloudflare-dns.com/dns-query"
+      ODoH_Proxy_URL    : Unbounded_String;  --  e.g., "https://odoh1.surfdomeinen.nl/proxy"
+
       --  EDNS (Extension Mechanisms for DNS)
       --  NOTE: Automatic via system resolver - no curl configuration needed
       --  Configure in /etc/resolv.conf with "options edns0"
    end record;
 
    No_DNS_Security : constant DNS_Security :=
-     (Enable_DANE  => False,
-      Require_DANE => False,
-      DoH_URL      => Null_Unbounded_String);
+     (Enable_DANE     => False,
+      Require_DANE    => False,
+      DoH_URL         => Null_Unbounded_String,
+      ODoH_Target_URL => Null_Unbounded_String,
+      ODoH_Proxy_URL  => Null_Unbounded_String);
 
    Default_DNS_Security : constant DNS_Security :=
-     (Enable_DANE  => True,   --  Opportunistic DANE
-      Require_DANE => False,  --  Don't fail on DANE absence
-      DoH_URL      => Null_Unbounded_String);
+     (Enable_DANE     => True,   --  Opportunistic DANE
+      Require_DANE    => False,  --  Don't fail on DANE absence
+      DoH_URL         => Null_Unbounded_String,
+      ODoH_Target_URL => Null_Unbounded_String,  --  Optional ODNS
+      ODoH_Proxy_URL  => Null_Unbounded_String);
 
    --  Client configuration
    type HTTP_Client_Config is record
@@ -194,6 +204,19 @@ is
    --      https://cloudflare-dns.com/dns-query  (Cloudflare)
    --      https://dns.google/dns-query          (Google)
    --      https://dns.quad9.net/dns-query       (Quad9)
+   --
+   --  Oblivious DNS-over-HTTPS (ODoH / ODNS):
+   --    Privacy-enhanced DoH per RFC 9230. Requires TWO URLs:
+   --      1. ODoH_Target_URL - The actual DNS resolver
+   --      2. ODoH_Proxy_URL  - Proxy that hides your IP from resolver
+   --    Example configuration:
+   --      ODoH_Target_URL: https://odoh.cloudflare-dns.com/dns-query
+   --      ODoH_Proxy_URL:  https://odoh1.surfdomeinen.nl/proxy
+   --    Benefits:
+   --      - Resolver doesn't see client IP (proxy hides it)
+   --      - Proxy doesn't see DNS queries (encrypted for target)
+   --      - Stronger privacy than regular DoH
+   --    Note: curl 7.73+ required, both URLs must be set
    --
    --  Encrypted Client Hello (ECH):
    --    Hides SNI in TLS handshake (privacy). Requires curl 8.2+

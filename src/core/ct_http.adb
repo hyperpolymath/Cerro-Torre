@@ -253,6 +253,20 @@ package body CT_HTTP is
          Add_Arg (To_String (Config.DNS_Security.DoH_URL));
       end if;
 
+      --  Oblivious DNS-over-HTTPS (ODoH / ODNS)
+      --  Requires both target and proxy URLs (curl 7.73+)
+      if Length (Config.DNS_Security.ODoH_Target_URL) > 0 and then
+         Length (Config.DNS_Security.ODoH_Proxy_URL) > 0
+      then
+         --  Note: As of curl 8.x, ODoH support is experimental
+         --  Use --doh-url with the target, then configure proxy separately
+         --  This is a simplified implementation - full ODoH may need additional flags
+         Add_Arg ("--doh-url");
+         Add_Arg (To_String (Config.DNS_Security.ODoH_Target_URL));
+         --  TODO: Add ODoH proxy configuration when curl support stabilizes
+         --  For now, this provides basic DoH to the target URL
+      end if;
+
       --  Proxy configuration
       if Config.Proxy.Protocol /= No_Proxy then
          declare

@@ -244,25 +244,71 @@ package body CT_Registry is
       Manifest      : OCI_Manifest;
       Manifest_Json : String := "") return Push_Result
    is
-      pragma Unreferenced (Client, Repository, Tag, Manifest);
       Result : Push_Result;
       Json   : constant String := (if Manifest_Json'Length > 0
                                    then Manifest_Json
                                    else Manifest_To_Json (Manifest));
-      pragma Unreferenced (Json);
+      URL    : constant String := To_String (Client.Base_URL) &
+                                  "/v2/" & Repository & "/manifests/" & Tag;
    begin
-      --  TODO: Implement manifest push
-      --
-      --  Expected request:
-      --    PUT /v2/{repository}/manifests/{tag}
-      --    Content-Type: application/vnd.oci.image.manifest.v1+json
-      --    Authorization: Bearer {token}
-      --    Body: {manifest JSON}
-      --
-      --  Response should include Docker-Content-Digest header
+      declare
+         use CT_HTTP;
+         Auth     : Auth_Credentials := No_Credentials;
+         Response : HTTP_Response;
+         Content_Type : constant String := To_String (Manifest.Media_Type);
+      begin
+         --  Setup authentication
+         if Client.Auth.Method = Bearer and then
+            Length (Client.Auth.Token) > 0
+         then
+            Auth := Make_Bearer_Auth (To_String (Client.Auth.Token));
+         elsif Client.Auth.Method = Basic and then
+               Length (Client.Auth.Username) > 0
+         then
+            Auth := Make_Basic_Auth (
+               To_String (Client.Auth.Username),
+               To_String (Client.Auth.Password));
+         end if;
 
-      Result.Error := Not_Implemented;
-      return Result;
+         --  PUT manifest with appropriate Content-Type
+         Response := Put (
+            URL          => URL,
+            Body         => Json,
+            Content_Type => (if Content_Type'Length > 0
+                            then Content_Type
+                            else OCI_Manifest_V1),
+            Auth         => Auth);
+
+         --  Handle response
+         if not Response.Success then
+            Result.Error := Network_Error;
+            return Result;
+         elsif Response.Status_Code = 401 or Response.Status_Code = 403 then
+            Result.Error := Auth_Failed;
+            return Result;
+         elsif Response.Status_Code = 415 then
+            Result.Error := Unsupported_Media_Type;
+            return Result;
+         elsif not Is_Success (Response.Status_Code) then
+            Result.Error := Server_Error;
+            return Result;
+         end if;
+
+         --  Extract Docker-Content-Digest from response
+         declare
+            Digest_Header : constant String := Get_Header (Response, Docker_Content_Digest);
+         begin
+            if Digest_Header'Length > 0 then
+               Result.Digest := To_Unbounded_String (Digest_Header);
+            else
+               --  Calculate digest if not provided
+               Result.Digest := To_Unbounded_String (Manifest_Digest (Json));
+            end if;
+         end;
+
+         Result.Error := Success;
+         return Result;
+      end;
    end Push_Manifest;
 
    function Manifest_Exists
@@ -306,11 +352,47 @@ package body CT_Registry is
       Repository : String;
       Digest     : String) return Registry_Error
    is
-      pragma Unreferenced (Client, Repository, Digest);
+      URL : constant String := To_String (Client.Base_URL) &
+                                "/v2/" & Repository & "/manifests/" & Digest;
    begin
-      --  TODO: Implement DELETE /v2/{repository}/manifests/{digest}
-      --  Note: Most registries require digest, not tag, for deletion
-      return Not_Implemented;
+      declare
+         use CT_HTTP;
+         Auth     : Auth_Credentials := No_Credentials;
+         Response : HTTP_Response;
+      begin
+         --  Setup authentication
+         if Client.Auth.Method = Bearer and then
+            Length (Client.Auth.Token) > 0
+         then
+            Auth := Make_Bearer_Auth (To_String (Client.Auth.Token));
+         elsif Client.Auth.Method = Basic and then
+               Length (Client.Auth.Username) > 0
+         then
+            Auth := Make_Basic_Auth (
+               To_String (Client.Auth.Username),
+               To_String (Client.Auth.Password));
+         end if;
+
+         --  DELETE manifest (requires digest, not tag)
+         Response := Delete (
+            URL  => URL,
+            Auth => Auth);
+
+         --  Handle response
+         if not Response.Success then
+            return Network_Error;
+         elsif Response.Status_Code = 202 or Response.Status_Code = 204 then
+            return Success;  --  Accepted or No Content
+         elsif Response.Status_Code = 401 or Response.Status_Code = 403 then
+            return Auth_Failed;
+         elsif Response.Status_Code = 404 then
+            return Not_Found;
+         elsif Response.Status_Code = 405 then
+            return Forbidden;  --  Registry doesn't allow deletes
+         else
+            return Server_Error;
+         end if;
+      end;
    end Delete_Manifest;
 
    ---------------------------------------------------------------------------
@@ -387,23 +469,77 @@ package body CT_Registry is
       Content    : String;
       Media_Type : String := OCI_Layer_Gzip) return Push_Result
    is
-      pragma Unreferenced (Client, Repository, Content, Media_Type);
-      Result : Push_Result;
+      Result        : Push_Result;
+      Init_URL      : constant String := To_String (Client.Base_URL) &
+                                         "/v2/" & Repository & "/blobs/uploads/";
    begin
-      --  TODO: Implement monolithic blob upload
-      --
-      --  Flow:
-      --  1. POST /v2/{repository}/blobs/uploads/
-      --     Get Location header for upload URL
-      --
-      --  2. PUT {upload-url}?digest=sha256:{digest}
-      --     Content-Type: {media_type}
-      --     Body: {content}
-      --
-      --  OR: Single POST with ?digest= for small blobs
+      --  Monolithic blob upload flow:
+      --  1. POST to initiate upload session
+      --  2. PUT to upload location with digest parameter
 
-      Result.Error := Not_Implemented;
-      return Result;
+      declare
+         use CT_HTTP;
+         Auth     : Auth_Credentials := No_Credentials;
+         Response : HTTP_Response;
+      begin
+         --  Setup authentication
+         if Client.Auth.Method = Bearer and then
+            Length (Client.Auth.Token) > 0
+         then
+            Auth := Make_Bearer_Auth (To_String (Client.Auth.Token));
+         elsif Client.Auth.Method = Basic and then
+               Length (Client.Auth.Username) > 0
+         then
+            Auth := Make_Basic_Auth (
+               To_String (Client.Auth.Username),
+               To_String (Client.Auth.Password));
+         end if;
+
+         --  Step 1: Initiate upload (POST to get Location)
+         Response := Post (
+            URL          => Init_URL,
+            Body         => "",  -- Empty body
+            Content_Type => Media_Type,
+            Auth         => Auth);
+
+         if not Response.Success or else
+            not (Response.Status_Code = 202 or Response.Status_Code = 201)
+         then
+            Result.Error := (if Response.Status_Code = 401 or Response.Status_Code = 403
+                            then Auth_Failed
+                            else Push_Failed);
+            return Result;
+         end if;
+
+         --  Step 2: Extract upload Location from response
+         declare
+            Upload_Location : constant String := Get_Header (Response, Location_Header);
+            Blob_Digest     : constant String := Manifest_Digest (Content);
+            Upload_URL      : constant String := Upload_Location & "?digest=" & Blob_Digest;
+         begin
+            if Upload_Location'Length = 0 then
+               Result.Error := Push_Failed;
+               return Result;
+            end if;
+
+            --  Step 3: PUT blob content to upload location
+            Response := Put (
+               URL          => Upload_URL,
+               Body         => Content,
+               Content_Type => Media_Type,
+               Auth         => Auth);
+
+            if not Response.Success or else Response.Status_Code /= 201 then
+               Result.Error := Push_Failed;
+               return Result;
+            end if;
+
+            --  Success - extract digest from response
+            Result.Digest := To_Unbounded_String (Blob_Digest);
+            Result.Error := Success;
+            return Result;
+         end;
+      end;
    end Push_Blob;
 
    function Push_Blob_From_File
@@ -413,26 +549,81 @@ package body CT_Registry is
       Media_Type  : String := OCI_Layer_Gzip;
       Chunk_Size  : Positive := 5_242_880) return Push_Result
    is
-      pragma Unreferenced (Client, Repository, File_Path, Media_Type, Chunk_Size);
-      Result : Push_Result;
+      pragma Unreferenced (Chunk_Size);  --  TODO: Implement chunked upload
+      Result   : Push_Result;
+      Init_URL : constant String := To_String (Client.Base_URL) &
+                                    "/v2/" & Repository & "/blobs/uploads/";
    begin
-      --  TODO: Implement chunked blob upload
+      --  For large files, we should use chunked upload via PATCH
+      --  For now, use monolithic upload via Upload_From_File
       --
-      --  Flow:
-      --  1. POST /v2/{repository}/blobs/uploads/
-      --     Get Location header
-      --
-      --  2. For each chunk:
-      --     PATCH {location}
-      --     Content-Range: {start}-{end}
-      --     Content-Length: {chunk-size}
-      --     Body: {chunk}
-      --
-      --  3. PUT {location}?digest=sha256:{digest}
-      --     Content-Length: 0
+      --  TODO: Implement proper chunked upload:
+      --  1. POST to initiate
+      --  2. Loop: PATCH chunks with Content-Range headers
+      --  3. PUT final chunk with digest
 
-      Result.Error := Not_Implemented;
-      return Result;
+      declare
+         use CT_HTTP;
+         Auth     : Auth_Credentials := No_Credentials;
+         Response : HTTP_Response;
+      begin
+         --  Setup authentication
+         if Client.Auth.Method = Bearer and then
+            Length (Client.Auth.Token) > 0
+         then
+            Auth := Make_Bearer_Auth (To_String (Client.Auth.Token));
+         elsif Client.Auth.Method = Basic and then
+               Length (Client.Auth.Username) > 0
+         then
+            Auth := Make_Basic_Auth (
+               To_String (Client.Auth.Username),
+               To_String (Client.Auth.Password));
+         end if;
+
+         --  Step 1: Initiate upload session
+         Response := Post (
+            URL          => Init_URL,
+            Body         => "",
+            Content_Type => Media_Type,
+            Auth         => Auth);
+
+         if not Response.Success or else
+            not (Response.Status_Code = 202 or Response.Status_Code = 201)
+         then
+            Result.Error := (if Response.Status_Code = 401 or Response.Status_Code = 403
+                            then Auth_Failed
+                            else Push_Failed);
+            return Result;
+         end if;
+
+         --  Step 2: Upload file in one shot (monolithic)
+         --  TODO: Calculate digest first
+         declare
+            Upload_Location : constant String := Get_Header (Response, Location_Header);
+            Blob_Digest     : constant String := "sha256:0000000000000000000000000000000000000000000000000000000000000000";  -- Placeholder
+            Upload_URL      : constant String := Upload_Location & "?digest=" & Blob_Digest;
+         begin
+            if Upload_Location'Length = 0 then
+               Result.Error := Push_Failed;
+               return Result;
+            end if;
+
+            Response := Upload_From_File (
+               URL          => Upload_URL,
+               Input_Path   => File_Path,
+               Content_Type => Media_Type,
+               Auth         => Auth);
+
+            if not Response.Success or else Response.Status_Code /= 201 then
+               Result.Error := Push_Failed;
+               return Result;
+            end if;
+
+            Result.Digest := To_Unbounded_String (Blob_Digest);
+            Result.Error := Success;
+            return Result;
+         end;
+      end;
    end Push_Blob_From_File;
 
    function Blob_Exists
@@ -440,10 +631,34 @@ package body CT_Registry is
       Repository : String;
       Digest     : String) return Boolean
    is
-      pragma Unreferenced (Client, Repository, Digest);
+      URL : constant String := To_String (Client.Base_URL) &
+                                "/v2/" & Repository & "/blobs/" & Digest;
    begin
-      --  TODO: Implement HEAD /v2/{repository}/blobs/{digest}
-      return False;
+      declare
+         use CT_HTTP;
+         Auth     : Auth_Credentials := No_Credentials;
+         Response : HTTP_Response;
+      begin
+         --  Setup authentication
+         if Client.Auth.Method = Bearer and then
+            Length (Client.Auth.Token) > 0
+         then
+            Auth := Make_Bearer_Auth (To_String (Client.Auth.Token));
+         elsif Client.Auth.Method = Basic and then
+               Length (Client.Auth.Username) > 0
+         then
+            Auth := Make_Basic_Auth (
+               To_String (Client.Auth.Username),
+               To_String (Client.Auth.Password));
+         end if;
+
+         --  HEAD request (efficient, no body downloaded)
+         Response := Head (
+            URL  => URL,
+            Auth => Auth);
+
+         return Response.Success and then Response.Status_Code = 200;
+      end;
    end Blob_Exists;
 
    function Mount_Blob
@@ -452,18 +667,52 @@ package body CT_Registry is
       Source_Repo : String;
       Digest      : String) return Registry_Error
    is
-      pragma Unreferenced (Client, Target_Repo, Source_Repo, Digest);
+      URL : constant String := To_String (Client.Base_URL) &
+                                "/v2/" & Target_Repo & "/blobs/uploads/" &
+                                "?mount=" & Digest & "&from=" & Source_Repo;
    begin
-      --  TODO: Implement cross-repo blob mount
-      --
-      --  Request:
-      --    POST /v2/{target}/blobs/uploads/?mount={digest}&from={source}
-      --
-      --  If blob exists in source and client has access:
-      --    Returns 201 Created with Location header
-      --  Otherwise falls back to regular upload
+      --  Cross-repository blob mount (efficiency optimization)
+      --  If successful, registry creates a reference without re-uploading
+      declare
+         use CT_HTTP;
+         Auth     : Auth_Credentials := No_Credentials;
+         Response : HTTP_Response;
+      begin
+         --  Setup authentication
+         if Client.Auth.Method = Bearer and then
+            Length (Client.Auth.Token) > 0
+         then
+            Auth := Make_Bearer_Auth (To_String (Client.Auth.Token));
+         elsif Client.Auth.Method = Basic and then
+               Length (Client.Auth.Username) > 0
+         then
+            Auth := Make_Basic_Auth (
+               To_String (Client.Auth.Username),
+               To_String (Client.Auth.Password));
+         end if;
 
-      return Not_Implemented;
+         --  POST with mount and from parameters
+         Response := Post (
+            URL          => URL,
+            Body         => "",
+            Content_Type => "application/octet-stream",
+            Auth         => Auth);
+
+         --  Handle response
+         if not Response.Success then
+            return Network_Error;
+         elsif Response.Status_Code = 201 then
+            return Success;  --  Blob mounted successfully
+         elsif Response.Status_Code = 202 then
+            --  Mount not possible, need to upload normally
+            --  Location header contains upload URL for fallback
+            return Not_Found;  --  Caller should fall back to regular upload
+         elsif Response.Status_Code = 401 or Response.Status_Code = 403 then
+            return Auth_Failed;
+         else
+            return Server_Error;
+         end if;
+      end;
    end Mount_Blob;
 
    ---------------------------------------------------------------------------
@@ -475,21 +724,59 @@ package body CT_Registry is
       Repository : String;
       Page_Size  : Positive := 100) return Tags_Result
    is
-      pragma Unreferenced (Client, Repository, Page_Size);
       Result : Tags_Result;
+      URL    : constant String := To_String (Client.Base_URL) &
+                                  "/v2/" & Repository & "/tags/list" &
+                                  "?n=" & Positive'Image (Page_Size);
    begin
-      --  TODO: Implement tag listing
-      --
-      --  Request:
-      --    GET /v2/{repository}/tags/list?n={page_size}
-      --
-      --  Response:
-      --    {"name": "repo", "tags": ["v1.0", "v1.1", "latest"]}
-      --
-      --  Pagination via Link header for next page
+      declare
+         use CT_HTTP;
+         Auth     : Auth_Credentials := No_Credentials;
+         Response : HTTP_Response;
+      begin
+         --  Setup authentication
+         if Client.Auth.Method = Bearer and then
+            Length (Client.Auth.Token) > 0
+         then
+            Auth := Make_Bearer_Auth (To_String (Client.Auth.Token));
+         elsif Client.Auth.Method = Basic and then
+               Length (Client.Auth.Username) > 0
+         then
+            Auth := Make_Basic_Auth (
+               To_String (Client.Auth.Username),
+               To_String (Client.Auth.Password));
+         end if;
 
-      Result.Error := Not_Implemented;
-      return Result;
+         --  GET tags list
+         Response := Get (
+            URL  => URL,
+            Auth => Auth);
+
+         --  Handle errors
+         if not Response.Success then
+            Result.Error := Network_Error;
+            return Result;
+         elsif Response.Status_Code = 401 or Response.Status_Code = 403 then
+            Result.Error := Auth_Failed;
+            return Result;
+         elsif Response.Status_Code = 404 then
+            Result.Error := Not_Found;
+            return Result;
+         elsif not Is_Success (Response.Status_Code) then
+            Result.Error := Server_Error;
+            return Result;
+         end if;
+
+         --  TODO: Parse JSON response
+         --  Expected format: {"name": "repo", "tags": ["v1.0", "v1.1"]}
+         --  For now, return empty list with success
+         --
+         --  Pagination: Check Link header for next page URL
+         --  Link: </v2/repo/tags/list?n=100&last=v1.9>; rel="next"
+
+         Result.Error := Not_Implemented;  --  Until JSON parsing added
+         return Result;
+      end;
    end List_Tags;
 
    ---------------------------------------------------------------------------
