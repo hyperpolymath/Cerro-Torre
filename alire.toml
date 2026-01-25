@@ -30,6 +30,10 @@ ada_toml = "*"
 [[depends-on]]
 json = "*"
 
+# For formally verified primitives (registry parsing, digest ops, HTTP utils)
+[[depends-on]]
+proven = "^0.9.0"
+
 # For HTTP client (source fetching, registry, transparency) - v0.2
 # Temporarily disabled due to dependency conflicts with gnatcoll 25
 # [[depends-on]]
@@ -45,3 +49,7 @@ CERRO_BUILD_MODE = ["Development", "Release", "Proof"]
 
 [gpr-set-externals]
 CERRO_BUILD_MODE = "Development"
+
+# Pin proven to local path (formally verified primitives)
+[[pins]]
+proven = { path = "../proven/bindings/ada" }

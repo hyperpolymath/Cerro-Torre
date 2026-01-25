@@ -16,6 +16,7 @@ with Ada.Directories;
 with Ada.Characters.Handling;
 with Ada.Strings.Fixed;
 with Ada.Streams.Stream_IO;
+with Cerro_URL;
 
 package body CT_HTTP is
 
@@ -628,17 +629,10 @@ package body CT_HTTP is
    ---------------------------------------------------------------------------
 
    function URL_Encode (S : String) return String is
-      Result : Unbounded_String;
    begin
-      for C of S loop
-         if C in 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '-' | '_' | '.' | '~' then
-            Append (Result, C);
-         else
-            Append (Result, '%');
-            Append (Result, Integer'Image (Character'Pos (C)));
-         end if;
-      end loop;
-      return To_String (Result);
+      --  Delegate to Cerro_URL for RFC 3986 compliant percent encoding
+      --  (Inspired by formally verified Proven.SafeHTTP module)
+      return Cerro_URL.URL_Encode (S);
    end URL_Encode;
 
    function Build_URL

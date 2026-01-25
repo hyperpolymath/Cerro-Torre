@@ -8,6 +8,7 @@ with Ada.Strings.Unbounded; use Ada.Strings.Unbounded;
 with Ada.Directories;
 with Ada.Strings.Fixed;
 with Ada.Environment_Variables;
+with Interfaces;
 with GNAT.OS_Lib;
 with CT_Errors;
 with CT_Registry;
@@ -23,6 +24,7 @@ package body Cerro_CLI is
    use Ada.Text_IO;
    use Ada.Command_Line;
    use type Cerro_Verify.Verify_Code;
+   use type Interfaces.Unsigned_64;
 
    ----------
    -- Pack --
@@ -722,13 +724,13 @@ package body Cerro_CLI is
                         Repository => To_String (Ref.Repository),
                         Actions    => "pull");
                   begin
-                     if Auth_Result /= Success and Auth_Result /= Not_Implemented then
-                        Put_Line ("✗ Authentication failed: " & Error_Message (Auth_Result));
+                     if Auth_Result /= CT_Registry.Success and Auth_Result /= CT_Registry.Not_Implemented then
+                        Put_Line ("✗ Authentication failed: " & CT_Registry.Error_Message (Auth_Result));
                         Set_Exit_Status (1);
                         return;
                      end if;
 
-                     if Verbose and Auth_Result = Success then
+                     if Verbose and Auth_Result = CT_Registry.Success then
                         Put_Line ("✓ Authenticated");
                      end if;
                   end;
@@ -787,7 +789,7 @@ package body Cerro_CLI is
                         Put_Line ("");
                         Set_Exit_Status (CT_Errors.Exit_General_Failure);
                         return;
-                     elsif Pull_Res.Error /= Success then
+                     elsif Pull_Res.Error /= CT_Registry.Success then
                         Put_Line ("✗ Pull failed: " & Error_Message (Pull_Res.Error));
 
                         case Pull_Res.Error is
@@ -974,13 +976,13 @@ package body Cerro_CLI is
                         Repository => To_String (Ref.Repository),
                         Actions    => "push");
                   begin
-                     if Auth_Result /= Success and Auth_Result /= Not_Implemented then
-                        Put_Line ("✗ Authentication failed: " & Error_Message (Auth_Result));
+                     if Auth_Result /= CT_Registry.Success and Auth_Result /= CT_Registry.Not_Implemented then
+                        Put_Line ("✗ Authentication failed: " & CT_Registry.Error_Message (Auth_Result));
                         Set_Exit_Status (1);
                         return;
                      end if;
 
-                     if Verbose and Auth_Result = Success then
+                     if Verbose and Auth_Result = CT_Registry.Success then
                         Put_Line ("✓ Authenticated");
                      end if;
                   end;
@@ -1214,7 +1216,7 @@ package body Cerro_CLI is
                         when others => 1);
                   else
                      Put_Line ("✓ Submitted to transparency log");
-                     Put_Line ("  UUID: " & String (Upload_Res.Entry.UUID));
+                     Put_Line ("  UUID: " & String (Upload_Res.The_Entry.UUID));
                      Put_Line ("  View: " & To_String (Upload_Res.URL));
                      Set_Exit_Status (0);
                   end if;
@@ -1316,9 +1318,9 @@ package body Cerro_CLI is
                      Set_Exit_Status (2);
                   else
                      Put_Line ("Found " & Natural'Image (Natural (Search_Res.Entries.Length)) & " entries:");
-                     for Entry of Search_Res.Entries loop
-                        Put_Line ("  UUID: " & String (Entry.UUID));
-                        Put_Line ("    Index: " & Unsigned_64'Image (Entry.Log_Index));
+                     for Log_Entry of Search_Res.Entries loop
+                        Put_Line ("  UUID: " & String (Log_Entry.UUID));
+                        Put_Line ("    Index: " & Unsigned_64'Image (Log_Entry.Log_Index));
                      end loop;
                      Set_Exit_Status (0);
                   end if;

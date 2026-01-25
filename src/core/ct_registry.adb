@@ -21,6 +21,9 @@ pragma SPARK_Mode (Off);  --  SPARK mode off pending HTTP client bindings
 
 with Ada.Strings.Fixed;
 with CT_HTTP;
+with Proven.Safe_Registry;
+with Proven.Safe_Digest;
+with Cerro_Crypto;
 
 package body CT_Registry is
 
@@ -785,15 +788,11 @@ package body CT_Registry is
 
    function Parse_Reference (Ref : String) return Image_Reference
    is
-      Result     : Image_Reference;
-      At_Pos     : Natural := 0;
-      Colon_Pos  : Natural := 0;
-      Slash_Pos  : Natural := 0;
-      Work       : String := Ref;
-      Work_Start : Positive := Work'First;
-      Work_End   : Natural := Work'Last;
+      Result        : Image_Reference;
+      Proven_Result : Proven.Safe_Registry.Parse_Result;
    begin
-      --  Parse format: [registry/]repository[:tag][@digest]
+      --  Use formally verified Proven.Safe_Registry.Parse
+      --  Format: [registry/]repository[:tag][@digest]
       --
       --  Examples:
       --    "nginx" -> docker.io/library/nginx:latest
@@ -801,76 +800,22 @@ package body CT_Registry is
       --    "ghcr.io/user/repo:v1.0" -> as-is
       --    "ghcr.io/user/repo@sha256:abc" -> as-is
 
-      --  First, extract digest if present (after @)
-      for I in reverse Work'Range loop
-         if Work (I) = '@' then
-            At_Pos := I;
-            Result.Digest := To_Unbounded_String (Work (I + 1 .. Work'Last));
-            Work_End := I - 1;
-            exit;
-         end if;
-      end loop;
+      Proven_Result := Proven.Safe_Registry.Parse (Ref);
 
-      --  Extract tag if present (after last : but only after last /)
-      Slash_Pos := 0;
-      for I in reverse Work_Start .. Work_End loop
-         if Work (I) = '/' then
-            Slash_Pos := I;
-            exit;
-         end if;
-      end loop;
-
-      for I in reverse (if Slash_Pos > 0 then Slash_Pos else Work_Start) .. Work_End loop
-         if Work (I) = ':' then
-            Colon_Pos := I;
-            Result.Tag := To_Unbounded_String (Work (I + 1 .. Work_End));
-            Work_End := I - 1;
-            exit;
-         end if;
-      end loop;
-
-      --  Determine if first component is registry or repository
-      --  Registry indicators: contains '.', ':', or is 'localhost'
-      Slash_Pos := 0;
-      for I in Work_Start .. Work_End loop
-         if Work (I) = '/' then
-            Slash_Pos := I;
-            exit;
-         end if;
-      end loop;
-
-      if Slash_Pos > 0 then
-         declare
-            First_Part : constant String := Work (Work_Start .. Slash_Pos - 1);
-            Has_Dot    : Boolean := False;
-            Has_Colon  : Boolean := False;
-         begin
-            for C of First_Part loop
-               if C = '.' then Has_Dot := True; end if;
-               if C = ':' then Has_Colon := True; end if;
-            end loop;
-
-            if Has_Dot or Has_Colon or First_Part = "localhost" then
-               --  First part is registry
-               Result.Registry := To_Unbounded_String (First_Part);
-               Result.Repository := To_Unbounded_String (Work (Slash_Pos + 1 .. Work_End));
-            else
-               --  No registry, use default
-               Result.Registry := To_Unbounded_String (Default_Registry);
-               Result.Repository := To_Unbounded_String (Work (Work_Start .. Work_End));
-            end if;
-         end;
-      else
-         --  No slash at all - simple name like "nginx"
-         Result.Registry := To_Unbounded_String (Default_Registry);
-         --  Docker Hub library images
-         Result.Repository := To_Unbounded_String ("library/" & Work (Work_Start .. Work_End));
+      if not Proven_Result.Valid then
+         --  Parse failed - return defaults
+         Result.Registry   := To_Unbounded_String (Default_Registry);
+         Result.Repository := To_Unbounded_String ("library/invalid");
+         Result.Tag        := To_Unbounded_String (Default_Tag);
+         Result.Digest     := Null_Unbounded_String;
+         return Result;
       end if;
 
-      --  Default tag if none specified and no digest
-      if Length (Result.Tag) = 0 and Length (Result.Digest) = 0 then
-         Result.Tag := To_Unbounded_String (Default_Tag);
-      end if;
+      --  Convert from Proven.Safe_Registry.Image_Reference to CT_Registry.Image_Reference
+      Result.Registry   := Proven_Result.Reference.Registry;
+      Result.Repository := Proven_Result.Reference.Repository;
+      Result.Tag        := Proven_Result.Reference.Tag;
+      Result.Digest     := Proven_Result.Reference.Digest;
 
       return Result;
    end Parse_Reference;
@@ -926,11 +871,15 @@ package body CT_Registry is
    end Parse_Manifest;
 
    function Manifest_Digest (Json : String) return String is
-      pragma Unreferenced (Json);
+      Hash : Cerro_Crypto.SHA256_Digest;
+      Hex  : String (1 .. 64);
    begin
-      --  TODO: Integrate with Cerro_Crypto.SHA256
-      --  Compute sha256 of canonical JSON
-      return "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+      --  Compute SHA256 hash of canonical JSON using formally verified crypto
+      Hash := Cerro_Crypto.Compute_SHA256 (Json);
+      Hex  := Cerro_Crypto.Bytes_To_Hex (Hash);
+
+      --  Return in OCI format: algorithm:hex
+      return "sha256:" & Hex;
    end Manifest_Digest;
 
    ---------------------------------------------------------------------------
@@ -941,13 +890,26 @@ package body CT_Registry is
      (Content : String;
       Digest  : String) return Boolean
    is
-      pragma Unreferenced (Content, Digest);
+      Expected_Result : Proven.Safe_Digest.Parse_Result;
+      Actual_Digest   : constant String := Manifest_Digest (Content);
+      Actual_Result   : Proven.Safe_Digest.Parse_Result;
    begin
-      --  TODO: Integrate with Cerro_Crypto
-      --  1. Extract algorithm from digest prefix (sha256:, sha512:, etc.)
-      --  2. Compute hash of content
-      --  3. Compare with digest value
-      return False;
+      --  Parse expected digest string (format: "algorithm:hex")
+      Expected_Result := Proven.Safe_Digest.Parse (Digest);
+      if not Expected_Result.Valid then
+         return False;  --  Invalid digest format
+      end if;
+
+      --  Compute actual digest and parse
+      Actual_Result := Proven.Safe_Digest.Parse (Actual_Digest);
+      if not Actual_Result.Valid then
+         return False;  --  Should never happen with our own digest
+      end if;
+
+      --  Use formally verified constant-time comparison
+      return Proven.Safe_Digest.Verify (
+         Expected => Expected_Result.Digest_Value,
+         Actual   => Actual_Result.Digest_Value);
    end Verify_Digest;
 
    function Error_Message (E : Registry_Error) return String is

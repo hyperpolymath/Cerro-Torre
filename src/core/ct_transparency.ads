@@ -137,7 +137,7 @@ is
 
    type Upload_Result is record
       Error       : Transparency_Error := Not_Implemented;
-      Entry       : Log_Entry;
+      The_Entry   : Log_Entry;  --  Renamed from "Entry" (reserved word)
       URL         : Unbounded_String;  --  URL to view entry
    end record;
 
@@ -253,24 +253,24 @@ is
    --  Verify a log entry (signature, SET, inclusion proof)
    function Verify_Entry
      (Client : Log_Client;
-      Entry  : Log_Entry) return Verify_Result
+      E      : Log_Entry) return Verify_Result
    with Global => null;
 
    --  Verify inclusion proof against current tree root
    function Verify_Inclusion
      (Client : Log_Client;
-      Entry  : Log_Entry) return Boolean
+      E      : Log_Entry) return Boolean
    with Global => null;
 
    --  Verify SET signature
    function Verify_SET
      (Client : Log_Client;
-      Entry  : Log_Entry) return Boolean
+      E      : Log_Entry) return Boolean
    with Global => null;
 
    --  Verify artifact hash matches entry
    function Verify_Artifact
-     (Entry    : Log_Entry;
+     (E        : Log_Entry;
       Artifact : String) return Boolean
    with Global => null;
 
@@ -316,7 +316,7 @@ is
 
    --  Create offline bundle from entry
    function Create_Bundle
-     (Entry      : Log_Entry;
+     (E          : Log_Entry;
       Signature  : String;
       Public_Key : String) return Verification_Bundle
    with Global => null;

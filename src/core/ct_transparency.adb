@@ -239,7 +239,7 @@ package body CT_Transparency is
 
    function Verify_Entry
      (Client : Log_Client;
-      Entry  : Log_Entry) return Verify_Result
+      E      : Log_Entry) return Verify_Result
    is
       Result : Verify_Result;
    begin
@@ -251,10 +251,10 @@ package body CT_Transparency is
       Result.Entry_Valid := False;  -- Not yet implemented
 
       --  2. Verify inclusion proof
-      Result.Inclusion_Valid := Verify_Inclusion (Client, Entry);
+      Result.Inclusion_Valid := Verify_Inclusion (Client, E);
 
       --  3. Verify SET
-      Result.SET_Valid := Verify_SET (Client, Entry);
+      Result.SET_Valid := Verify_SET (Client, E);
 
       if not Result.Entry_Valid or not Result.Inclusion_Valid or not Result.SET_Valid then
          if not Result.Entry_Valid then
@@ -273,9 +273,9 @@ package body CT_Transparency is
 
    function Verify_Inclusion
      (Client : Log_Client;
-      Entry  : Log_Entry) return Boolean
+      E      : Log_Entry) return Boolean
    is
-      pragma Unreferenced (Client, Entry);
+      pragma Unreferenced (Client, E);
    begin
       --  TODO: Implement Merkle inclusion proof verification
       --
@@ -291,9 +291,9 @@ package body CT_Transparency is
 
    function Verify_SET
      (Client : Log_Client;
-      Entry  : Log_Entry) return Boolean
+      E      : Log_Entry) return Boolean
    is
-      pragma Unreferenced (Client, Entry);
+      pragma Unreferenced (Client, E);
    begin
       --  TODO: Implement SET verification
       --
@@ -309,17 +309,17 @@ package body CT_Transparency is
    end Verify_SET;
 
    function Verify_Artifact
-     (Entry    : Log_Entry;
+     (E        : Log_Entry;
       Artifact : String) return Boolean
    is
       pragma Unreferenced (Artifact);
    begin
       --  TODO: Implement artifact hash verification
       --
-      --  1. Compute hash of artifact using Entry.Body_Hash_Algo
-      --  2. Compare to Entry.Body_Hash
+      --  1. Compute hash of artifact using E.Body_Hash_Algo
+      --  2. Compare to E.Body_Hash
 
-      if Length (Entry.Body_Hash) = 0 then
+      if Length (E.Body_Hash) = 0 then
          return False;
       end if;
 
@@ -375,7 +375,7 @@ package body CT_Transparency is
    ---------------------------------------------------------------------------
 
    function Create_Bundle
-     (Entry      : Log_Entry;
+     (E          : Log_Entry;
       Signature  : String;
       Public_Key : String) return Verification_Bundle
    is
@@ -385,8 +385,8 @@ package body CT_Transparency is
          "application/vnd.dev.sigstore.bundle+json;version=0.1");
       Bundle.Signature := To_Unbounded_String (Signature);
       Bundle.Public_Key := To_Unbounded_String (Public_Key);
-      Bundle.Artifact_Hash := Entry.Body_Hash;
-      Bundle.Log_Entry := Entry.Raw_Entry;
+      Bundle.Artifact_Hash := E.Body_Hash;
+      Bundle.Log_Entry := E.Raw_Entry;
       --  TODO: Serialize inclusion proof
       Bundle.Inclusion_Proof := To_Unbounded_String ("{}");
       Bundle.Timestamp_Proof := To_Unbounded_String ("");
