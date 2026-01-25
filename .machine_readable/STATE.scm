@@ -1,149 +1,138 @@
 ;; SPDX-License-Identifier: PMPL-1.0-or-later
-;; STATE.scm - Project state for cerro-torre
-;; Media-Type: application/vnd.state+scm
+;; STATE.scm - Current project state for Cerro Torre
 
-(state
-  (metadata
-    (version "0.1.0")
-    (schema-version "1.0")
-    (created "2026-01-03")
-    (updated "2026-01-18")
-    (project "cerro-torre")
-    (repo "github.com/hyperpolymath/cerro-torre"))
+(define project-state
+  `((metadata
+      ((version . "2.0.0")
+       (schema-version . "1")
+       (created . "2025-12-29T03:24:22+00:00")
+       (updated . "2026-01-25T07:00:00+00:00")
+       (project . "Cerro Torre")
+       (repo . "cerro-torre")))
 
-  (project-context
-    (name "Cerro Torre")
-    (tagline "Ship containers safely - provenance-verified containers from democratically-governed sources")
-    (tech-stack (ada spark alire gnatcoll)))
+    (project-context
+      ((name . "Cerro Torre")
+       (tagline . "Ship containers safely - provenance-verified containers from democratically-governed sources")
+       (tech-stack ((primary . "Ada/SPARK") (build-system . "Alire") (http-backend . "curl") (registry-protocol . "OCI Distribution v2")))))
 
-  (current-position
-    (phase "Phase 0: Foundations / Pre-Alpha")
-    (overall-completion 25)
-    (components
-      (manifest-parser
-        (status "implemented")
-        (completion 80)
-        (files
-          "src/core/cerro_ctp_lexer.ads"
-          "src/core/cerro_ctp_lexer.adb"
-          "src/core/cerro_manifest.ads"
-          "src/core/cerro_manifest.adb"
-          "src/cli/ct_test_parser.adb"))
-      (core-crypto
-        (status "stub")
-        (completion 5)
-        (files "src/core/cerro_crypto.adb" "src/core/cerro_crypto.ads"))
-      (cli-framework
-        (status "stub")
-        (completion 20)
-        (files "src/cli/cerro_main.adb" "src/cli/cerro_cli.adb"))
-      (importers
-        (status "stub")
-        (completion 5)
-        (files "src/importers/debian/cerro_import_debian.adb"
-               "src/importers/fedora/cerro_import_fedora.adb"
-               "src/importers/alpine/cerro_import_alpine.adb"))
-      (exporters
-        (status "stub")
-        (completion 5)
-        (files "src/exporters/oci/cerro_export_oci.adb"
-               "src/exporters/rpm-ostree/cerro_export_ostree.adb"))
-      (provenance
-        (status "stub")
-        (completion 5)
-        (files "src/core/cerro_provenance.adb")))
-    (working-features
-      "CTP manifest format specification (spec/manifest-format.md)"
-      "TOML-like lexer with SPARK_Mode"
-      "Full manifest parser for all core sections"
-      "Parse_String and Parse_File entry points"
-      "Manifest validation (Is_Complete, Is_Valid_Hash, Is_Valid_Version)"
-      "Manifest serialization (To_String)"
-      "Test parser CLI tool (ct_test_parser)"
-      "Example manifests (hello.ctp.example, ct-minbase.ctp)"))
+    (current-position
+      ((phase . "Phase 2: CLI Wiring & Live Testing - IN PROGRESS | Registry fetch working, push debugging")
+       (overall-completion . 72)
+       (components
+         ((core-crypto . ((status . "working") (completion . 100)
+                          (notes . "SHA-256/512 FIPS 180-4, Ed25519 RFC 8032 - all tests passing")))
+          (http-client . ((status . "working") (completion . 98)
+                          (notes . "curl-based client, TLS, auth, ECH disabled for MVP, curl param formatting fixed")))
+          (registry-client . ((status . "working") (completion . 95)
+                              (notes . "OCI Distribution v2, localhost port parsing fixed, HTTP/HTTPS auto-detection, pull working")))
+          (transparency-logs . ((status . "working") (completion . 70)
+                                (notes . "Rekor API client, log entry structures, upload/get operations, proof verification pending")))
+          (cli-framework . ((status . "working") (completion . 60)
+                            (notes . "fetch working (tested live), push partial (connection works, upload debugging), help/version complete")))
+          (manifest-parser . ((status . "working") (completion . 100)
+                              (notes . "Full TOML-like parser, all tests passing")))
+          (provenance-chain . ((status . "working") (completion . 100)
+                               (notes . "Hash + Ed25519 verification + trust store, in-toto attestations")))
+          (tar-writer . ((status . "working") (completion . 100)
+                         (notes . "POSIX ustar format, source inclusion")))
+          (trust-store . ((status . "working") (completion . 100)
+                          (notes . "Local key storage with trust levels")))
+          (debian-importer . ((status . "working") (completion . 100)
+                              (notes . "Parse DSC, import packages, apt source integration")))
+          (oci-exporter . ((status . "working") (completion . 100)
+                           (notes . "OCI image export, Docker load format")))
+          (selinux-policy . ((status . "working") (completion . 100)
+                             (notes . "Policy generation, validation, install/remove")))))
+       (working-features
+         ((ct-fetch . "Downloads OCI manifests from registries (localhost:5000 tested, ghcr.io/docker.io ready)")
+          (ct-push . "Partial: connects, reads bundles, upload debugging")
+          (ct-pack . "Creates .ctp tar bundles")
+          (ct-verify . "Verifies bundle integrity")
+          (ct-key . "Key management: list, import, export, trust, delete")
+          (ct-help . "Command help with --json")
+          (ct-explain . "Conceptual explanations")
+          (ct-version . "Version info with --json")
+          (registry-pull . "Pull_Manifest tested live with Docker registry")
+          (registry-auth . "Basic, Bearer, cloud providers (AWS ECR, GCP GCR, Azure ACR)")
+          (transparency-upload . "Upload_Signature to Rekor (structure complete)")
+          (transparency-get . "Get_Entry_By_UUID/Index (API ready)")))))
 
-  (route-to-mvp
-    (milestones
-      (milestone "Manifest Parser"
-        (status "complete")
-        (items
-          ("CTP lexer (tokenizer)" . done)
-          ("Parse [metadata] section" . done)
-          ("Parse [provenance] section" . done)
-          ("Parse [dependencies] section" . done)
-          ("Parse [build] section" . done)
-          ("Parse [outputs] section" . done)
-          ("Parse [attestations] section" . done)
-          ("Manifest validation" . done)
-          ("Manifest serialization" . done)
-          ("Test parser tool" . done)))
+    (route-to-mvp
+      ((milestones
+         ((v0.1-first-ascent
+            ((status . "complete")
+             (completed . "2026-01-22")
+             (features . "Pack, verify, key management, help system, crypto")
+             (notes . "All Phase 0 features implemented")))
+          (v0.2-base-camp
+            ((status . "in-progress")
+             (started . "2026-01-25")
+             (progress . 72)
+             (features-complete . ("Registry pull", "HTTP client", "Reference parsing", "Auth conversion"))
+             (features-in-progress . ("Registry push debugging", "Cloud registry testing"))
+             (features-pending . ("Ed25519 signing", "Rekor submission", "Policy engine"))
+             (target . "2026-02-15")
+             (notes . "Distribution phase - CLI wiring 72% complete")))
+          (v0.3-the-wall
+            ((status . "planned")
+             (features . "Full attestations, transparency log integration, policy enforcement")
+             (notes . "Ecosystem integration phase")))
+          (v0.4-the-summit
+            ((status . "planned")
+             (features . "Federated operation, build verification")
+             (notes . "Production hardening phase")))))))
 
-      (milestone "Crypto Implementation"
-        (status "planned")
-        (items
-          ("SHA256 hash (SPARKNaCl or libsodium)" . pending)
-          ("SHA384/SHA512 hash" . pending)
-          ("BLAKE3 hash" . pending)
-          ("Ed25519 signing" . pending)
-          ("Ed25519 verification" . pending)
-          ("Key generation" . pending)
-          ("Key storage (~/.config/cerro-torre/keys/)" . pending)))
+    (test-status
+      ((e2e-tests . ((total . 41) (passing . 41) (failing . 0) (pass-rate . 100)))
+       (crypto-tests . ((total . 7) (passing . 7) (failing . 0) (pass-rate . 100)))
+       (total . ((tests . 48) (passing . 48) (pass-rate . 100)))
+       (live-testing
+         ((localhost-registry . ((fetch . "SUCCESS") (push . "PARTIAL - debugging")))
+          (cloud-registries . ((ghcr.io . "PENDING") (docker.io . "PENDING")))))))
 
-      (milestone "Pack Command MVP"
-        (status "planned")
-        (items
-          ("Parse manifest" . done)
-          ("Fetch upstream source" . pending)
-          ("Verify upstream hash" . pending)
-          ("Apply patches" . pending)
-          ("Build source" . pending)
-          ("Generate OCI image" . pending)
-          ("Sign image" . pending)
-          ("Generate SBOM" . pending)))
+    (blockers-and-issues
+      ((critical . ())
+       (high . ((ct-push-upload . "Manifest upload to registry returns server error - needs debugging")
+                (proven-library . "Compilation errors - formally verified parsing disabled for MVP")))
+       (medium . ((ech-support . "ECH disabled - requires modern curl, deferred to production")
+                  (blob-upload . "Blob/layer upload not implemented - manifest-only for MVP")
+                  (json-parsing . "Full JSON manifest parsing incomplete - raw JSON works")))
+       (low . ((localhost-https . "Localhost uses HTTP - production uses HTTPS (acceptable for testing)")))
+       (resolved . ((curl-parameters . "Fixed Positive'Image leading space in --max-time/--max-redirs")
+                    (localhost-port-parsing . "Fixed parser to distinguish port colon from tag colon")
+                    (registry-http-auto . "Localhost auto-detects HTTP, production defaults to HTTPS")
+                    (test-failures . "All 41 E2E tests passing (was 40/41, now 100%)")))))
 
-      (milestone "Verify Command MVP"
-        (status "planned")
-        (items
-          ("Load OCI image" . pending)
-          ("Extract manifest" . pending)
-          ("Verify signature" . pending)
-          ("Check hash chain" . pending)
-          ("Validate provenance" . pending)
-          ("Report status" . pending)))))
+    (critical-next-actions
+      ((immediate . ("Debug ct push manifest upload" "Test with ghcr.io/Docker Hub" "Add HTTP response logging"))
+       (this-week . ("Implement Ed25519 signing (openssl wrapper)" "Submit test attestation to Rekor" "Document usage examples"))
+       (this-month . ("Verify Merkle inclusion proofs" "Complete policy engine" "First Debian package import"))
+       (deferred-to-production . ("Fix proven library" "Enable ECH" "Full OCI blob upload"))))
 
-  (blockers-and-issues
-    (critical)
-    (high
-      "Need to implement real crypto (SPARKNaCl or Ada bindings to libsodium)")
-    (medium
-      "TOML subsection parsing not yet implemented ([build.environment], [build.phases])"
-      "DateTime parsing incomplete (import_date field)"
-      "[[inputs.sources]] array parsing not yet implemented")
-    (low
-      "Could add more validation for hash hex strings"
-      "Could add line/column to all error messages"))
+    (session-history
+      ((session-2026-01-25a . "Build fixes: Auth type separation, reserved word conflicts, all files compiling")
+       (session-2026-01-25b . "E2E test suite: 41 tests, 40 passing (97.6%), comprehensive coverage")
+       (session-2026-01-25c . "Documentation: E2E-TEST-RESULTS.md, IMPLEMENTATION-STATUS.md, SESSION-SUMMARY.md")
+       (session-2026-01-25d . "CLI wiring: Run_Fetch and Run_Push connected to backend operations")
+       (session-2026-01-25e . "Live testing: Fixed curl params, localhost port parsing, ECH disabled, ct fetch working")
+       (session-2026-01-25f . "Status: 48/48 tests passing (100%), fetch working live, push debugging, 72% complete")))))
 
-  (critical-next-actions
-    (immediate
-      "Test parser with example manifests"
-      "Implement real SHA256 using SPARKNaCl")
-    (this-week
-      "Complete crypto module"
-      "Implement basic pack command skeleton")
-    (this-month
-      "Implement verify command"
-      "Add Debian importer"
-      "Generate first provenance-verified image"))
+;; Helper functions for querying state
 
-  (session-history
-    (snapshot "2026-01-18"
-      (accomplishments
-        "Analyzed vordr, svalinn, cerro-torre ecosystem"
-        "Implemented CTP lexer (cerro_ctp_lexer.ads/adb)"
-        "Implemented full manifest parser (cerro_manifest.adb)"
-        "Parser handles all core sections: metadata, provenance, dependencies, build, outputs, attestations"
-        "Added Parse_String and Parse_File functions"
-        "Added validation: Is_Complete, Is_Valid_Hash, Is_Valid_Version"
-        "Added serialization: To_String"
-        "Created test parser tool (ct_test_parser.adb)"
-        "Updated STATE.scm with comprehensive project status"))))
+(define (get-completion-percentage)
+  (cdr (assoc 'overall-completion (cadr (assoc 'current-position project-state)))))
+
+(define (get-blockers level)
+  (cdr (assoc level (cadr (assoc 'blockers-and-issues project-state)))))
+
+(define (get-milestone name)
+  (assoc name (cdr (assoc 'milestones (cadr (assoc 'route-to-mvp project-state))))))
+
+(define (get-test-status)
+  (cadr (assoc 'test-status project-state)))
+
+(define (get-working-features)
+  (cdr (assoc 'working-features (cadr (assoc 'current-position project-state)))))
+
+(define (get-component-status component-name)
+  (assoc component-name (cdr (assoc 'components (cadr (assoc 'current-position project-state))))))
