@@ -97,6 +97,7 @@ package body CT_Registry is
       Client.User_Agent := To_Unbounded_String (Default_User_Agent);
       Client.Timeout_Ms := 30_000;
       Client.Verify_TLS := True;
+      Client.Debug_Logging := False;
 
       return Client;
    end Create_Client;
@@ -329,27 +330,35 @@ package body CT_Registry is
 
          --  Handle response
          if not Response.Success then
-            Ada.Text_IO.Put_Line ("[DEBUG] HTTP request failed");
-            Ada.Text_IO.Put_Line ("[DEBUG] Error: " & To_String (Response.Error_Message));
+            if Client.Debug_Logging then
+               Ada.Text_IO.Put_Line ("[DEBUG] HTTP request failed");
+               Ada.Text_IO.Put_Line ("[DEBUG] Error: " & To_String (Response.Error_Message));
+            end if;
             Result.Error := Network_Error;
             return Result;
          elsif Response.Status_Code = 401 or Response.Status_Code = 403 then
-            Ada.Text_IO.Put_Line ("[DEBUG] Authentication failed");
-            Ada.Text_IO.Put_Line ("[DEBUG] Status: " & Status_Code'Image (Response.Status_Code));
-            Ada.Text_IO.Put_Line ("[DEBUG] Body: " & To_String (Response.Content));
+            if Client.Debug_Logging then
+               Ada.Text_IO.Put_Line ("[DEBUG] Authentication failed");
+               Ada.Text_IO.Put_Line ("[DEBUG] Status: " & Status_Code'Image (Response.Status_Code));
+               Ada.Text_IO.Put_Line ("[DEBUG] Body: " & To_String (Response.Content));
+            end if;
             Result.Error := Auth_Failed;
             return Result;
          elsif Response.Status_Code = 415 then
-            Ada.Text_IO.Put_Line ("[DEBUG] Unsupported media type");
-            Ada.Text_IO.Put_Line ("[DEBUG] Status: " & Status_Code'Image (Response.Status_Code));
-            Ada.Text_IO.Put_Line ("[DEBUG] Body: " & To_String (Response.Content));
+            if Client.Debug_Logging then
+               Ada.Text_IO.Put_Line ("[DEBUG] Unsupported media type");
+               Ada.Text_IO.Put_Line ("[DEBUG] Status: " & Status_Code'Image (Response.Status_Code));
+               Ada.Text_IO.Put_Line ("[DEBUG] Body: " & To_String (Response.Content));
+            end if;
             Result.Error := Unsupported_Media_Type;
             return Result;
          elsif not Is_Success (Response.Status_Code) then
-            Ada.Text_IO.Put_Line ("[DEBUG] Server error");
-            Ada.Text_IO.Put_Line ("[DEBUG] Status: " & Status_Code'Image (Response.Status_Code) &
-                                  " " & To_String (Response.Status_Reason));
-            Ada.Text_IO.Put_Line ("[DEBUG] Body: " & To_String (Response.Content));
+            if Client.Debug_Logging then
+               Ada.Text_IO.Put_Line ("[DEBUG] Server error");
+               Ada.Text_IO.Put_Line ("[DEBUG] Status: " & Status_Code'Image (Response.Status_Code) &
+                                     " " & To_String (Response.Status_Reason));
+               Ada.Text_IO.Put_Line ("[DEBUG] Body: " & To_String (Response.Content));
+            end if;
             Result.Error := Server_Error;
             return Result;
          end if;

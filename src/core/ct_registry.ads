@@ -158,11 +158,12 @@ is
    ---------------------------------------------------------------------------
 
    type Registry_Client is record
-      Base_URL     : Unbounded_String;  --  e.g., "https://ghcr.io"
-      Auth         : Registry_Auth_Credentials;
-      User_Agent   : Unbounded_String;  --  Client identifier
-      Timeout_Ms   : Positive := 30_000;  --  Request timeout
-      Verify_TLS   : Boolean := True;    --  Verify TLS certificates
+      Base_URL      : Unbounded_String;  --  e.g., "https://ghcr.io"
+      Auth          : Registry_Auth_Credentials;
+      User_Agent    : Unbounded_String;  --  Client identifier
+      Timeout_Ms    : Positive := 30_000;  --  Request timeout
+      Verify_TLS    : Boolean := True;    --  Verify TLS certificates
+      Debug_Logging : Boolean := False;   --  Enable HTTP debug logging
    end record;
 
    --  Default client configuration

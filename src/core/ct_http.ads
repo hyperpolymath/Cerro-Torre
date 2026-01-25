@@ -162,6 +162,9 @@ is
       TCP_Nodelay       : Boolean := True;   --  Disable Nagle's algorithm
       IPv4_Only         : Boolean := False;  --  Force IPv4
       IPv6_Only         : Boolean := False;  --  Force IPv6
+
+      --  Debug options
+      Debug_Logging     : Boolean := False;  --  Enable HTTP request/response logging
    end record;
    --  SECURITY: TLS verification must be enabled in production
    --  Dynamic predicate removed - checked at runtime in HTTP operations instead
@@ -181,7 +184,8 @@ is
       TCP_Keepalive     => True,
       TCP_Nodelay       => True,
       IPv4_Only         => False,
-      IPv6_Only         => False);
+      IPv6_Only         => False,
+      Debug_Logging     => False);     --  Disabled by default
 
    ---------------------------------------------------------------------------
    --  Security Notes
