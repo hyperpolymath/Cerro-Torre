@@ -386,7 +386,7 @@ package body CT_HTTP is
          Add_Arg (Output_File);
       else
          Add_Arg ("-o");
-         Add_Arg (Body_File);
+         Add_Arg (Data_File);
       end if;
 
       --  URL (must be last)
@@ -459,8 +459,8 @@ package body CT_HTTP is
          end if;
 
          --  Read body (if not output to file)
-         if Output_File'Length = 0 and Ada.Directories.Exists (Body_File) then
-            Response.Body := To_Unbounded_String (Read_File_Contents (Body_File));
+         if Output_File'Length = 0 and Ada.Directories.Exists (Data_File) then
+            Response.Content := To_Unbounded_String (Read_File_Contents (Data_File));
          end if;
       else
          Response.Success := False;
@@ -469,8 +469,8 @@ package body CT_HTTP is
 
       --  Cleanup temp files
       Delete_File_Safe (Header_File);
-      Delete_File_Safe (Body_File);
-      Delete_File_Safe (Body_In_File);
+      Delete_File_Safe (Data_File);
+      Delete_File_Safe (Data_In_File);
 
       --  Free argument memory
       for I in 1 .. Arg_Count loop
@@ -483,8 +483,8 @@ package body CT_HTTP is
       when E : others =>
          --  Cleanup on error
          Delete_File_Safe (Header_File);
-         Delete_File_Safe (Body_File);
-         Delete_File_Safe (Body_In_File);
+         Delete_File_Safe (Data_File);
+         Delete_File_Safe (Data_In_File);
          for I in 1 .. Arg_Count loop
             Free (Arg_List (I));
          end loop;

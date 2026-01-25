@@ -260,7 +260,7 @@ is
       Status_Code   : CT_HTTP.Status_Code := 0;
       Status_Reason : Unbounded_String;
       Headers       : Header_Map;
-      Body          : Unbounded_String;
+      Content       : Unbounded_String;  --  Response body content (renamed from Body)
       Error_Message : Unbounded_String;  --  Set if request failed
       Success       : Boolean := False;  --  True if request completed
    end record;
@@ -314,7 +314,7 @@ is
    --  Perform POST request with body
    function Post
      (URL          : String;
-      Body         : String;
+      Data         : String;
       Content_Type : String := "application/json";
       Config       : HTTP_Client_Config := Default_Config;
       Auth         : Auth_Credentials := No_Credentials;
@@ -325,7 +325,7 @@ is
    --  Perform PUT request with body
    function Put
      (URL          : String;
-      Body         : String;
+      Data         : String;
       Content_Type : String := "application/json";
       Config       : HTTP_Client_Config := Default_Config;
       Auth         : Auth_Credentials := No_Credentials;
@@ -354,7 +354,7 @@ is
    --  Perform PATCH request with body
    function Patch
      (URL          : String;
-      Body         : String;
+      Data         : String;
       Content_Type : String := "application/json";
       Config       : HTTP_Client_Config := Default_Config;
       Auth         : Auth_Credentials := No_Credentials;

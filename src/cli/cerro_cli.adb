@@ -1040,7 +1040,7 @@ package body Cerro_CLI is
                      Put_Line ("");
                      Set_Exit_Status (CT_Errors.Exit_General_Failure);
                      return;
-                  elsif Push_Res.Error /= Success then
+                  elsif Push_Res.Error /= CT_Registry.Success then
                      Put_Line ("✗ Push failed: " & Error_Message (Push_Res.Error));
 
                      case Push_Res.Error is
@@ -1209,8 +1209,8 @@ package body Cerro_CLI is
                      Put_Line ("  ✓ Generate offline verification bundles");
                      Put_Line ("");
                      Set_Exit_Status (CT_Errors.Exit_General_Failure);
-                  elsif Upload_Res.Error /= Success then
-                     Put_Line ("✗ Upload failed: " & Error_Message (Upload_Res.Error));
+                  elsif Upload_Res.Error /= CT_Transparency.Success then
+                     Put_Line ("✗ Upload failed: " & CT_Transparency.Error_Message (Upload_Res.Error));
                      Set_Exit_Status (case Upload_Res.Error is
                         when Network_Error => 2,
                         when others => 1);
@@ -1265,8 +1265,8 @@ package body Cerro_CLI is
                      Put_Line ("  ✓ Check artifact hash matches");
                      Put_Line ("  ✓ Verify quorum (2+ logs agree)");
                      Set_Exit_Status (CT_Errors.Exit_General_Failure);
-                  elsif Verify_Res.Error /= Success then
-                     Put_Line ("✗ Verification failed: " & Error_Message (Verify_Res.Error));
+                  elsif Verify_Res.Error /= CT_Transparency.Success then
+                     Put_Line ("✗ Verification failed: " & CT_Transparency.Error_Message (Verify_Res.Error));
                      Set_Exit_Status (1);
                   else
                      Put_Line ("✓ All log proofs verified");
@@ -1310,17 +1310,17 @@ package body Cerro_CLI is
                      return;
                   end if;
 
-                  if Search_Res.Error = Not_Implemented then
+                  if Search_Res.Error = CT_Transparency.Not_Implemented then
                      Put_Line ("Log search prepared but not yet implemented.");
                      Set_Exit_Status (CT_Errors.Exit_General_Failure);
-                  elsif Search_Res.Error /= Success then
-                     Put_Line ("✗ Search failed: " & Error_Message (Search_Res.Error));
+                  elsif Search_Res.Error /= CT_Transparency.Success then
+                     Put_Line ("✗ Search failed: " & CT_Transparency.Error_Message (Search_Res.Error));
                      Set_Exit_Status (2);
                   else
                      Put_Line ("Found " & Natural'Image (Natural (Search_Res.Entries.Length)) & " entries:");
                      for Log_Entry of Search_Res.Entries loop
                         Put_Line ("  UUID: " & String (Log_Entry.UUID));
-                        Put_Line ("    Index: " & Unsigned_64'Image (Log_Entry.Log_Index));
+                        Put_Line ("    Index: " & Interfaces.Unsigned_64'Image (Log_Entry.Log_Index));
                      end loop;
                      Set_Exit_Status (0);
                   end if;
@@ -1334,7 +1334,7 @@ package body Cerro_CLI is
                Info   : constant Tree_Info := Get_Log_Info (Client);
             begin
                Put_Line ("Transparency Log: " & To_String (Client.Base_URL));
-               Put_Line ("  Tree size: " & Unsigned_64'Image (Info.Tree_Size));
+               Put_Line ("  Tree size: " & Interfaces.Unsigned_64'Image (Info.Tree_Size));
                if Length (Info.Root_Hash) > 0 then
                   Put_Line ("  Root hash: " & To_String (Info.Root_Hash));
                end if;

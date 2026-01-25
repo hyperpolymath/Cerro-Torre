@@ -178,7 +178,8 @@ is
      (Client     : in out Registry_Client;
       Repository : String;
       Actions    : String := "pull") return Registry_Error
-   with Global => null,
+   with SPARK_Mode => Off,  --  SPARK doesn't allow functions with in out parameters
+        Global => null,
         Pre    => Repository'Length > 0;
    --  Actions: "pull", "push", or "pull,push"
 
