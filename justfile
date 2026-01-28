@@ -59,3 +59,94 @@ shadow-build:
         echo "patscc not found - install ATS2 for shadow verifier"; \
     fi
 
+# ============================================================
+# Container Image Variants
+# ============================================================
+
+VERSION := "2.0.0"
+
+# Build all image variants
+build-all-images: build-ct-i build-ct-a build-ct
+
+# ============================================================
+# Cerro Torre Variants
+# ============================================================
+
+# Build ct-i (infrastructure variant: registry ops + basic packing)
+build-ct-i:
+    @echo "📦 Building ct-i (infrastructure)..."
+    podman build -f containerfiles/ct-i.containerfile \
+      -t ct-i:{{VERSION}} \
+      -t ct-i:latest .
+
+# Build ct-a (attestation variant: signing + rekor + sbom)
+build-ct-a:
+    @echo "🔐 Building ct-a (attestation)..."
+    podman build -f containerfiles/ct-a.containerfile \
+      -t ct-a:{{VERSION}} \
+      -t ct-a:latest .
+
+# Build ct (complete variant: all features)
+build-ct:
+    @echo "🏔️  Building ct (complete)..."
+    podman build -f containerfiles/ct.containerfile \
+      -t ct:{{VERSION}} \
+      -t ct:latest .
+
+# ============================================================
+# Testing
+# ============================================================
+
+# Test ct-i (infrastructure variant)
+test-ct-i:
+    @echo "🧪 Testing ct-i..."
+    podman run --rm ct-i:latest pack --help
+    podman run --rm ct-i:latest fetch --help
+
+# Test ct-a (attestation variant)
+test-ct-a:
+    @echo "🧪 Testing ct-a..."
+    podman run --rm ct-a:latest sign --help
+    podman run --rm ct-a:latest keygen --help
+
+# Test ct (complete variant)
+test-ct:
+    @echo "🧪 Testing ct..."
+    podman run --rm ct:latest --version
+    podman run --rm ct:latest pack --help
+
+# ============================================================
+# Publishing
+# ============================================================
+
+# Publish all variants
+publish-all: publish-ct-i publish-ct-a publish-ct
+
+# Publish ct-i
+publish-ct-i:
+    @echo "📤 Publishing ct-i..."
+    podman push ct-i:{{VERSION}} ghcr.io/hyperpolymath/ct-i:{{VERSION}}
+    podman push ct-i:latest ghcr.io/hyperpolymath/ct-i:latest
+
+# Publish ct-a
+publish-ct-a:
+    @echo "📤 Publishing ct-a..."
+    podman push ct-a:{{VERSION}} ghcr.io/hyperpolymath/ct-a:{{VERSION}}
+    podman push ct-a:latest ghcr.io/hyperpolymath/ct-a:latest
+
+# Publish ct
+publish-ct:
+    @echo "📤 Publishing ct..."
+    podman push ct:{{VERSION}} ghcr.io/hyperpolymath/ct:{{VERSION}}
+    podman push ct:latest ghcr.io/hyperpolymath/ct:latest
+
+# ============================================================
+# Cleanup
+# ============================================================
+
+# Clean all image variants
+clean-images:
+    podman rmi ct-i:{{VERSION}} ct-i:latest || true
+    podman rmi ct-a:{{VERSION}} ct-a:latest || true
+    podman rmi ct:{{VERSION}} ct:latest || true
+
