@@ -3,6 +3,18 @@
 :toc: left
 :toclevels: 3
 
+[IMPORTANT]
+====
+**Looking for alpha/beta releases?** Check the `releases/` directory (not here).
+
+**Looking for research (R-) or extreme (X-) builds?** See directories:
+
+* `containerfiles-research/` - Idris2 dependent type verification (experimental proofs)
+* `containerfiles-extreme/` - ATS2 linear type verification (high-security compliance)
+
+**These standard variants are production-ready** and recommended for 95% of users.
+====
+
 == Overview
 
 Three pre-configured Cerro Torre images for different use cases:
@@ -428,3 +440,53 @@ podman run --rm ct:latest import --list
 
 # Use complete variant, not ct-i or ct-a
 ----
+
+== Full Variant Matrix
+
+Cerro Torre offers **9 total variants** (3 verification levels × 3 feature sets):
+
+[cols="1,1,1,1",options="header"]
+|===
+| Feature Set | Standard (SPARK) | Research (Idris2+SPARK) | eXtreme (ATS2+SPARK)
+
+| Infrastructure (-i)
+| **ct-i** (this directory)
+| R-ct-i (research/)
+| X-ct-i (extreme/)
+
+| Attestation (-a)
+| **ct-a** (this directory)
+| R-ct-a (research/)
+| X-ct-a (extreme/)
+
+| Complete (no suffix)
+| **ct** (this directory)
+| R-ct (research/)
+| X-ct (extreme/)
+|===
+
+**Verification levels:**
+
+* **Standard** (this directory): Ada/SPARK proofs only - production-ready, recommended for 95% of users
+* **Research** (`containerfiles-research/`): Adds Idris2 dependent type proofs - for academic research
+* **eXtreme** (`containerfiles-extreme/`): Adds ATS2 linear type proofs - for military/financial compliance
+
+**Feature sets:**
+
+* **-i** (Infrastructure): Registry ops, basic packing (~80MB)
+* **-a** (Attestation): -i + signing, Rekor, SBOM (~150MB)
+* **(no suffix)** (Complete): -a + importers, dev tools (~200MB)
+
+**Most users need:** `ct-i`, `ct-a`, or `ct` (standard variants, this directory).
+
+== Not Alpha/Beta
+
+[IMPORTANT]
+====
+**R- and X- variants are NOT alpha/beta releases.**
+
+* **R-/X- variants**: Stable code, experimental/extreme *verification methods*
+* **Alpha/Beta releases**: Unstable *features* (found in `releases/` directory)
+
+All 9 variants are production-quality code. They differ only in verification approach.
+====
