@@ -19,7 +19,8 @@ package Cerro_Pack is
       Manifest_Path : Unbounded_String;  --  Path to manifest.ctp
       Output_Path   : Unbounded_String;  --  Output .ctp bundle path
       Source_Dir    : Unbounded_String;  --  Directory containing sources
-      Sign          : Boolean := False;   --  Whether to sign (not MVP)
+      Sign          : Boolean := False;   --  Whether to sign bundle
+      Key_Id        : Unbounded_String;  --  Signing key ID (required if Sign=True)
       Verbose       : Boolean := False;   --  Verbose output
    end record;
 

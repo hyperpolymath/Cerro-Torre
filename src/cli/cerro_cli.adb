@@ -50,8 +50,9 @@ package body Cerro_CLI is
          Put_Line ("Options:");
          Put_Line ("  -o, --output <file>    Output path for .ctp bundle (required)");
          Put_Line ("  -s, --sources <dir>    Include source files from directory");
+         Put_Line ("  --sign                 Sign bundle with Ed25519 key");
+         Put_Line ("  --key <id>             Key ID to sign with (required if --sign)");
          Put_Line ("  -v, --verbose          Show detailed progress");
-         Put_Line ("  --no-sign              Create unsigned bundle (default for MVP)");
          Set_Exit_Status (CT_Errors.Exit_General_Failure);
          return;
       end if;
@@ -76,6 +77,13 @@ package body Cerro_CLI is
                   if I < Argument_Count then
                      I := I + 1;
                      Opts.Source_Dir := To_Unbounded_String (Argument (I));
+                  end if;
+               elsif Arg = "--sign" then
+                  Opts.Sign := True;
+               elsif Arg = "--key" then
+                  if I < Argument_Count then
+                     I := I + 1;
+                     Opts.Key_Id := To_Unbounded_String (Argument (I));
                   end if;
                elsif Arg = "-v" or Arg = "--verbose" then
                   Opts.Verbose := True;

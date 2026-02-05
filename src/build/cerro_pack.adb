@@ -3,8 +3,14 @@
 
 with Ada.Text_IO;
 with Ada.Directories;
+with Ada.Calendar.Formatting;
+with Ada.Environment_Variables;
+with Ada.Strings.Fixed;
+with GNAT.OS_Lib;
 with Cerro_Manifest;
 with Cerro_Crypto;
+with Cerro_Crypto_OpenSSL;
+with Cerro_Trust_Store;
 with Cerro_Tar;
 
 package body Cerro_Pack is
@@ -59,9 +65,14 @@ package body Cerro_Pack is
    procedure Write_Summary_Json
       (Path          : String;
        Manifest      : Cerro_Manifest.Manifest;
-       Manifest_Hash : String)
+       Manifest_Hash : String;
+       Signature_Hex : String := "";
+       Key_Id        : String := "";
+       Fingerprint   : String := "";
+       Timestamp     : String := "")
    is
       File : TIO.File_Type;
+      Has_Signature : constant Boolean := (Signature_Hex'Length > 0);
    begin
       TIO.Create (File, TIO.Out_File, Path);
 
@@ -74,7 +85,22 @@ package body Cerro_Pack is
       TIO.Put_Line (File, "  ""content"": {");
       TIO.Put_Line (File, "    ""manifest_sha256"": """ & Manifest_Hash & """");
       TIO.Put_Line (File, "  },");
-      TIO.Put_Line (File, "  ""attestations"": []");
+
+      if Has_Signature then
+         TIO.Put_Line (File, "  ""attestations"": [");
+         TIO.Put_Line (File, "    {");
+         TIO.Put_Line (File, "      ""type"": ""signature"",");
+         TIO.Put_Line (File, "      ""suite"": ""CT-SIG-01"",");
+         TIO.Put_Line (File, "      ""key_id"": """ & Key_Id & """,");
+         TIO.Put_Line (File, "      ""fingerprint"": """ & Fingerprint & """,");
+         TIO.Put_Line (File, "      ""signature"": """ & Signature_Hex & """,");
+         TIO.Put_Line (File, "      ""timestamp"": """ & Timestamp & """");
+         TIO.Put_Line (File, "    }");
+         TIO.Put_Line (File, "  ]");
+      else
+         TIO.Put_Line (File, "  ""attestations"": []");
+      end if;
+
       TIO.Put_Line (File, "}");
 
       TIO.Close (File);
@@ -239,12 +265,181 @@ package body Cerro_Pack is
                TIO.Put_Line ("Manifest SHA256: " & Manifest_Hash);
             end if;
 
-            --  Write summary.json
-            Write_Summary_Json (Summary_Path, Parse_Result.Value, Manifest_Hash);
+            --  Sign bundle if requested
+            declare
+               Signature_Hex : Unbounded_String := Null_Unbounded_String;
+               Key_Id_Str    : Unbounded_String := Null_Unbounded_String;
+               Fingerprint   : Unbounded_String := Null_Unbounded_String;
+               Timestamp_Str : Unbounded_String := Null_Unbounded_String;
+            begin
+               if Opts.Sign then
+                  if Length (Opts.Key_Id) = 0 then
+                     return (Success => False,
+                             Bundle_Path => Null_Unbounded_String,
+                             Error_Msg => To_Unbounded_String ("--key <id> required when using --sign"));
+                  end if;
 
-            if Opts.Verbose then
-               TIO.Put_Line ("Created summary: " & Summary_Path);
-            end if;
+                  declare
+                     use Cerro_Crypto_OpenSSL;
+                     use Cerro_Trust_Store;
+                     use Ada.Calendar.Formatting;
+
+                     Key_Id_S      : constant String := To_String (Opts.Key_Id);
+                     Home          : constant String := Ada.Environment_Variables.Value ("HOME", "/tmp");
+                     Priv_Key_Path : constant String := Home & "/.config/cerro-torre/keys/" &
+                                                        Key_Id_S & ".priv";
+                     Priv_File     : TIO.File_Type;
+                     Priv_Hex      : String (1 .. 128);
+                     Last          : Natural;
+                     Private_Key   : Ed25519_Private_Key;
+                     Signature     : Cerro_Crypto.Ed25519_Signature;
+                     Success       : Boolean;
+                     Info          : Key_Info;
+                     Result        : Store_Result;
+                  begin
+                     --  Load private key
+                     if not Dir.Exists (Priv_Key_Path) then
+                        return (Success => False,
+                                Bundle_Path => Null_Unbounded_String,
+                                Error_Msg => To_Unbounded_String ("Private key not found: " &
+                                                                  Priv_Key_Path));
+                     end if;
+
+                     TIO.Open (Priv_File, TIO.In_File, Priv_Key_Path);
+                     TIO.Get_Line (Priv_File, Priv_Hex, Last);
+                     TIO.Close (Priv_File);
+
+                     --  Convert hex to binary
+                     Hex_To_Private_Key (Priv_Hex, Private_Key, Success);
+                     if not Success then
+                        return (Success => False,
+                                Bundle_Path => Null_Unbounded_String,
+                                Error_Msg => To_Unbounded_String ("Invalid private key format"));
+                     end if;
+
+                     --  Sign manifest hash (shell-based MVP)
+                     --  TODO: Replace with direct OpenSSL bindings once Spawn is fixed
+                     declare
+                        use GNAT.OS_Lib;
+                        Script_Path : constant String := "/tmp/ct-sign-" &
+                                                        Ada.Strings.Fixed.Trim (Key_Id_S, Ada.Strings.Both) &
+                                                        ".sh";
+                        Sig_Path    : constant String := "/tmp/ct-sig-" &
+                                                        Ada.Strings.Fixed.Trim (Key_Id_S, Ada.Strings.Both) &
+                                                        ".hex";
+                        Script_File : TIO.File_Type;
+                        Sig_File    : TIO.File_Type;
+                        Sig_Hex     : String (1 .. 128);
+                        Args        : Argument_List_Access;
+                        Sig_Last    : Natural;
+                     begin
+                        --  Create signing script
+                        TIO.Create (Script_File, TIO.Out_File, Script_Path);
+                        TIO.Put_Line (Script_File, "#!/bin/bash");
+                        TIO.Put_Line (Script_File, "set -e");
+                        TIO.Put_Line (Script_File, "TEMP=$(mktemp -d)");
+                        TIO.Put_Line (Script_File, "cd ""$TEMP""");
+                        --  Write hex private key (first 64 hex chars = 32-byte seed)
+                        TIO.Put_Line (Script_File, "echo -n '" & Priv_Hex (1 .. 64) & "' > seed.hex");
+                        --  Write message to sign
+                        TIO.Put_Line (Script_File, "echo -n '" & Manifest_Hash & "' > msg.txt");
+                        --  Convert seed to DER format (add DER header + 32-byte seed)
+                        TIO.Put_Line (Script_File,
+                           "printf '\\x30\\x2e\\x02\\x01\\x00\\x30\\x05\\x06\\x03\\x2b\\x65\\x70\\x04\\x22\\x04\\x20' " &
+                           "> key.der");
+                        TIO.Put_Line (Script_File,
+                           "python3 -c ""import sys; " &
+                           "sys.stdout.buffer.write(bytes.fromhex('$(cat seed.hex)'))"" >> key.der");
+                        --  Convert DER to PEM
+                        TIO.Put_Line (Script_File,
+                           "openssl pkey -inform DER -in key.der -out key.pem 2>/dev/null");
+                        --  Sign message
+                        TIO.Put_Line (Script_File,
+                           "openssl pkeyutl -sign -inkey key.pem -in msg.txt 2>/dev/null | " &
+                           "hexdump -v -e '/1 ""%02x""' > """ & Sig_Path & """");
+                        TIO.Put_Line (Script_File, "cd / && rm -rf ""$TEMP""");
+                        TIO.Close (Script_File);
+
+                        --  Make executable and run
+                        Args := new Argument_List'(
+                           new String'("+x"),
+                           new String'(Script_Path)
+                        );
+                        Spawn ("/usr/bin/chmod", Args.all, Success);
+                        Free (Args (1));
+                        Free (Args (2));
+                        Free (Args);
+
+                        Args := new Argument_List'(1 => new String'(Script_Path));
+                        Spawn ("/bin/bash", Args.all, Success);
+                        Free (Args (1));
+                        Free (Args);
+
+                        --  Clean up script (commented for debugging)
+                        --  begin
+                        --     Dir.Delete_File (Script_Path);
+                        --  exception
+                        --     when others => null;
+                        --  end;
+
+                        --  Read signature
+                        if not Dir.Exists (Sig_Path) then
+                           return (Success => False,
+                                   Bundle_Path => Null_Unbounded_String,
+                                   Error_Msg => To_Unbounded_String ("Signature generation failed"));
+                        end if;
+
+                        TIO.Open (Sig_File, TIO.In_File, Sig_Path);
+                        TIO.Get_Line (Sig_File, Sig_Hex, Sig_Last);
+                        TIO.Close (Sig_File);
+                        Dir.Delete_File (Sig_Path);
+
+                        --  Convert to binary
+                        Hex_To_Signature (Sig_Hex, Signature, Success);
+                        if not Success then
+                           return (Success => False,
+                                   Bundle_Path => Null_Unbounded_String,
+                                   Error_Msg => To_Unbounded_String ("Invalid signature format"));
+                        end if;
+                     end;
+
+                     --  Get key info from trust store
+                     Result := Get_Key (Key_Id_S, Info);
+                     if Result /= OK then
+                        return (Success => False,
+                                Bundle_Path => Null_Unbounded_String,
+                                Error_Msg => To_Unbounded_String ("Key not found in trust store: " &
+                                                                  Key_Id_S));
+                     end if;
+
+                     --  Prepare attestation data
+                     Signature_Hex := To_Unbounded_String (Signature_To_Hex (Signature));
+                     Key_Id_Str    := To_Unbounded_String (Key_Id_S);
+                     Fingerprint   := To_Unbounded_String (Info.Fingerprint (1 .. Info.Finger_Len));
+                     Timestamp_Str := To_Unbounded_String (Image (Ada.Calendar.Clock));
+
+                     if Opts.Verbose then
+                        TIO.Put_Line ("✓ Signed with key: " & Key_Id_S);
+                        TIO.Put_Line ("  Fingerprint: " & To_String (Fingerprint));
+                     end if;
+                  end;
+               end if;
+
+               --  Write summary.json (with or without signature)
+               Write_Summary_Json (
+                  Path          => Summary_Path,
+                  Manifest      => Parse_Result.Value,
+                  Manifest_Hash => Manifest_Hash,
+                  Signature_Hex => To_String (Signature_Hex),
+                  Key_Id        => To_String (Key_Id_Str),
+                  Fingerprint   => To_String (Fingerprint),
+                  Timestamp     => To_String (Timestamp_Str)
+               );
+
+               if Opts.Verbose then
+                  TIO.Put_Line ("Created summary: " & Summary_Path);
+               end if;
+            end;
 
             --  Create bundle
             declare
